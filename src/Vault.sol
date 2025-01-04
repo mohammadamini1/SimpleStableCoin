@@ -10,7 +10,6 @@ contract Vault is AccessControl {
     using SafeERC20 for IERC20;
     
     // Roles
-    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant SIMSTABLE_CONTRACT_ROLE = keccak256("SIMSTABLE_CONTRACT_ROLE");
 
     // Collateral token address
@@ -21,21 +20,15 @@ contract Vault is AccessControl {
     error InvalidCollateralTokenAddress();
     error InvalidSimStableTokenAddress();
     error InvalidDepositAmount();
+    error InvalidWithdrawAmount();
     error UnauthorizedCaller();
 
     // Events
     event CollateralDeposited(address indexed user, uint256 amount);
     event CollateralWithdrawn(address indexed user, uint256 amount);
+    event CollateralTokenUpdated(address newCollateralToken);
 
 
-
-    /* ---------- MODIFIERS ---------- */
-    modifier onlySimStableRole() {
-        if (!hasRole(SIMSTABLE_CONTRACT_ROLE, _msgSender())) {
-            revert UnauthorizedCaller();
-        }
-        _;
-    }
 
 
 
@@ -60,12 +53,16 @@ contract Vault is AccessControl {
     }
 
 
+
+    /* ---------- EXTERNALS ---------- */
+
+
     /**
      * @notice Deposits collateral into the Vault.
      * @param user The address of the user depositing collateral.
      * @param amount Amount of collateral to deposit.
      */
-    function depositCollateral(address user, uint256 amount) external onlySimStableRole {
+    function depositCollateral(address user, uint256 amount) external onlyRole(SIMSTABLE_CONTRACT_ROLE) {
         // Check if the deposit amount is greater than zero
         if (amount == 0) {
             revert InvalidDepositAmount();
@@ -78,6 +75,53 @@ contract Vault is AccessControl {
     }
 
 
+    /**
+     * @notice Withdraws collateral from the Vault.
+     * @param amount Amount of collateral to withdraw.
+     */
+    function withdrawCollateral(address user, uint256 amount) external onlyRole(SIMSTABLE_CONTRACT_ROLE) {
+        // Check if the withdraw amount is greater than zero
+        if (amount == 0) {
+            revert InvalidWithdrawAmount();
+        }
+
+        // Transfer collateral tokens to the user from this contract
+        collateralToken.safeTransfer(user, amount);
+
+        emit CollateralWithdrawn(user, amount);
+    }
+
+
+
+
+    /* ---------- VIEWS ---------- */
+
+    /**
+     * @notice Returns the total collateral balance in the Vault.
+     * @return Total collateral balance.
+     */
+    function getCollateralBalance() external view returns (uint256) {
+        return collateralToken.balanceOf(address(this));
+    }
+
+
+
+
+    /* ---------- ADMIN FUNCTIONS ---------- */
+
+    /**
+     * @notice Sets a new collateral token.
+     * @param _newCollateralToken New collateral token address.
+     */
+    function setCollateralToken(address _newCollateralToken) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        // Check for the zero address.
+        if (_newCollateralToken == address(0)) {
+            revert InvalidCollateralTokenAddress();
+        }
+
+        collateralToken = IERC20(_newCollateralToken);
+        emit CollateralTokenUpdated(_newCollateralToken);
+    }
 
 
 
