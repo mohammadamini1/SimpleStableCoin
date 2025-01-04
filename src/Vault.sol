@@ -21,7 +21,6 @@ contract Vault is AccessControl {
     error InvalidSimStableTokenAddress();
     error InvalidDepositAmount();
     error InvalidWithdrawAmount();
-    error UnauthorizedCaller();
 
     // Events
     event CollateralDeposited(address indexed user, uint256 amount);
@@ -34,6 +33,7 @@ contract Vault is AccessControl {
 
 
     /* ---------- CONSTRUCTOR ---------- */
+
     constructor(address _collateralToken, address _simStableAddress) {
         // Check for the zero address.
         if (_collateralToken == address(0)) {
@@ -44,7 +44,7 @@ contract Vault is AccessControl {
         }
 
         // Set up roles
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _grantRole(SIMSTABLE_CONTRACT_ROLE, _simStableAddress);
 
         // initialize state variables
@@ -120,6 +120,7 @@ contract Vault is AccessControl {
         }
 
         collateralToken = IERC20(_newCollateralToken);
+
         emit CollateralTokenUpdated(_newCollateralToken);
     }
 
