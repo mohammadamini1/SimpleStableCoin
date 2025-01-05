@@ -8,16 +8,12 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract Vault is AccessControl {
     using SafeERC20 for IERC20;
-    
+
     // Roles
     bytes32 public constant SIMSTABLE_CONTRACT_ROLE = keccak256("SIMSTABLE_CONTRACT_ROLE");
-
-    // Collateral token address
-    IERC20 public collateralToken;
-    IERC20 public simStableAddress;
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
     // Errors
-    error InvalidCollateralTokenAddress();
     error InvalidSimStableTokenAddress();
     error InvalidDepositAmount();
     error InvalidWithdrawAmount();
@@ -34,22 +30,20 @@ contract Vault is AccessControl {
 
     /* ---------- CONSTRUCTOR ---------- */
 
-    constructor(address _collateralToken, address _simStableAddress) {
+    /**
+     * @notice Initializes the Vault contract with the specified SIMStable token address.
+     * @param _simStableAddress The address of the SIMStable token to be associated with the Vault.
+     */
+    constructor(address _simStableAddress) {
         // Check for the zero address.
-        if (_collateralToken == address(0)) {
-            revert InvalidCollateralTokenAddress();
-        }
         if (_simStableAddress == address(0)) {
             revert InvalidSimStableTokenAddress();
         }
 
         // Set up roles
         _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
+        _grantRole(ADMIN_ROLE, _msgSender());
         _grantRole(SIMSTABLE_CONTRACT_ROLE, _simStableAddress);
-
-        // initialize state variables
-        collateralToken = IERC20(_collateralToken);
-        simStableAddress = IERC20(_simStableAddress);
     }
 
 
@@ -59,17 +53,18 @@ contract Vault is AccessControl {
 
     /**
      * @notice Deposits collateral into the Vault.
+     * @param _collateralToken The address of the collateral token.
      * @param user The address of the user depositing collateral.
      * @param amount Amount of collateral to deposit.
      */
-    function depositCollateral(address user, uint256 amount) external onlyRole(SIMSTABLE_CONTRACT_ROLE) {
+    function depositCollateral(address _collateralToken, address user, uint256 amount) external onlyRole(SIMSTABLE_CONTRACT_ROLE) {
         // Check if the deposit amount is greater than zero
         if (amount == 0) {
             revert InvalidDepositAmount();
         }
 
         // Transfer collateral tokens from the user to this contract
-        collateralToken.safeTransferFrom(user, address(this), amount);
+        IERC20(_collateralToken).safeTransferFrom(user, address(this), amount);
 
         emit CollateralDeposited(user, amount);
     }
@@ -77,16 +72,18 @@ contract Vault is AccessControl {
 
     /**
      * @notice Withdraws collateral from the Vault.
+     * @param _collateralToken The address of the collateral token.
+     * @param user The address of the user depositing collateral.
      * @param amount Amount of collateral to withdraw.
      */
-    function withdrawCollateral(address user, uint256 amount) external onlyRole(SIMSTABLE_CONTRACT_ROLE) {
+    function withdrawCollateral(address _collateralToken, address user, uint256 amount) external onlyRole(SIMSTABLE_CONTRACT_ROLE) {
         // Check if the withdraw amount is greater than zero
         if (amount == 0) {
             revert InvalidWithdrawAmount();
         }
 
         // Transfer collateral tokens to the user from this contract
-        collateralToken.safeTransfer(user, amount);
+        IERC20(_collateralToken).safeTransfer(user, amount);
 
         emit CollateralWithdrawn(user, amount);
     }
@@ -98,31 +95,17 @@ contract Vault is AccessControl {
 
     /**
      * @notice Returns the total collateral balance in the Vault.
+     * @param _collateralToken The address of the collateral token.
      * @return Total collateral balance.
      */
-    function getCollateralBalance() external view returns (uint256) {
-        return collateralToken.balanceOf(address(this));
+    function getCollateralBalance(address _collateralToken) external view returns (uint256) {
+        return IERC20(_collateralToken).balanceOf(address(this));
     }
 
 
 
 
-    /* ---------- ADMIN FUNCTIONS ---------- */
 
-    /**
-     * @notice Sets a new collateral token.
-     * @param _newCollateralToken New collateral token address.
-     */
-    function setCollateralToken(address _newCollateralToken) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        // Check for the zero address.
-        if (_newCollateralToken == address(0)) {
-            revert InvalidCollateralTokenAddress();
-        }
-
-        collateralToken = IERC20(_newCollateralToken);
-
-        emit CollateralTokenUpdated(_newCollateralToken);
-    }
 
 
 
