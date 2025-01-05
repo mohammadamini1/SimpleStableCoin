@@ -10,8 +10,8 @@ contract Vault is AccessControl {
     using SafeERC20 for IERC20;
 
     // Roles
-    bytes32 public constant SIMSTABLE_CONTRACT_ROLE = keccak256("SIMSTABLE_CONTRACT_ROLE");
-    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 private constant SIMSTABLE_CONTRACT_ROLE = keccak256("SIMSTABLE_CONTRACT_ROLE");
+    bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
     // Errors
     error InvalidSimStableTokenAddress();
@@ -21,9 +21,6 @@ contract Vault is AccessControl {
     // Events
     event CollateralDeposited(address indexed user, uint256 amount);
     event CollateralWithdrawn(address indexed user, uint256 amount);
-    event CollateralTokenUpdated(address newCollateralToken);
-
-
 
 
 

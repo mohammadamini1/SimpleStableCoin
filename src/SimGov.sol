@@ -9,8 +9,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract SimGov is ERC20, AccessControl {
     // Roles
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-
+    bytes32 private constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     // Errors
     error InvalidSimStableTokenAddress();
