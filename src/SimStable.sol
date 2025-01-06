@@ -14,8 +14,8 @@ import "./interface/ISimGov.sol";
 
 
 
-// TODO override transfer and transferfrom
-
+// TODO: override transfer and transferfrom
+// TODO: add simulation functions to calculate simStable amount for mint or redeem
 
 contract SimStable is ERC20, AccessControl {
     // Roles
@@ -44,11 +44,12 @@ contract SimStable is ERC20, AccessControl {
     error InvalidSimGovAmount();
     error PriceFetchFailed();
     error CollateralRatioOutOfBounds();
+    error InsufficientSimStableBalance();
 
 
     // Events
     event Minted(address indexed user, address indexed collateralToken, uint256 collateralAmount, uint256 collateralPrice, uint256 simStableAmount, uint256 collateralRatio, uint256 simGovAmount, uint256 simGovPrice);
-    event Redeemed(address indexed user, uint256 simStableAmount, uint256 collateralAmount, uint256 simGovAmount);
+    event Redeemed(address indexed user, address indexed collateralToken, uint256 simStableAmount, uint256 collateralAmount, uint256 collateralPrice, uint256 simGovAmount, uint256 simGovPrice, uint256 collateralRatio);
     event Buyback(address indexed user, uint256 simGovAmount, uint256 collateralUsed);
     event ReCollateralized(address indexed user, uint256 collateralAdded, uint256 simGovMinted);
     event CollateralRatioAdjusted(uint256 newCollateralRatio);
@@ -56,12 +57,13 @@ contract SimStable is ERC20, AccessControl {
     event SimGovUpdated(address simGov);
     event CollateralPairAdded(address collateralToken, address pair);
     event CollateralPairRemoved(address collateralToken);
-
+    error UnsupportedCollateralToken();
 
     // Constants
     uint256 private constant SCALING_FACTOR = 1e6;
     address private immutable UNISWAP_FACTORY;
     address private immutable WETH_ADDRESS;
+    uint256 constant WAD = 1e18;
 
 
 
@@ -79,7 +81,7 @@ contract SimStable is ERC20, AccessControl {
         _grantRole(ADMIN_ROLE, _msgSender());
 
         // Initialize parameters
-        collateralRatio = SCALING_FACTOR/2; // 100% at first
+        collateralRatio = SCALING_FACTOR; // 100% at first
         adjustmentCoefficient = _adjustmentCoeff;
 
         UNISWAP_FACTORY = _uniswapFactoryAddress;
@@ -89,7 +91,11 @@ contract SimStable is ERC20, AccessControl {
 
     /* ---------- CORE FUNCTIONS ---------- */
 
-
+    /**
+     * @notice Mints SimStable tokens by depositing collateral and burning SimGov tokens based on the collateral ratio.
+     * @param _collateralToken The address of the collateral token.
+     * @param _collateralAmount Amount of collateral to deposit.
+     */
     function mint(address _collateralToken, uint256 _collateralAmount) external {
         // Ensure that the collateral amount is greater than zero
         if (_collateralAmount == 0) {
@@ -99,11 +105,11 @@ contract SimStable is ERC20, AccessControl {
         // Ensure that the collateral token is supported
         address pair = collateralToPair[_collateralToken];
         if (pair == address(0)) {
-            revert("Unsupported collateral token");
+            revert UnsupportedCollateralToken();
         }
 
         // Fetch the price of the collateral token
-        uint256 collateralPrice = getTokenPriceSpot(_collateralToken, pair);
+        uint256 collateralPrice = getTokenPrice(_collateralToken, pair);
         if (collateralPrice == 0) {
             revert PriceFetchFailed();
         }
@@ -115,7 +121,7 @@ contract SimStable is ERC20, AccessControl {
         }
 
         // Calculate the value of the collateral
-        uint256 collateralValue = _collateralAmount * collateralPrice;
+        uint256 collateralValue = _collateralAmount * collateralPrice / WAD;
 
         // Calculate the required SimStable amount based on collateral ratio
         // collateralValue = CR * simStableAmount => simStableAmount = collateralValue / CR
@@ -127,10 +133,10 @@ contract SimStable is ERC20, AccessControl {
         // Calculate the required SimGov amount to back the remaining (1 - CR) portion
         // simGovValue = (1 - CR) * simStableAmount
         uint256 simGovValue = ((simStableAmount * (SCALING_FACTOR - collateralRatio)) / SCALING_FACTOR);
-        // simGovAmount = simGovValue / simGovPrice
-        uint256 simGovAmount = simGovValue  / simGovPrice;
+        // simGovValue = simGovAmount * simGovPrice
+        uint256 simGovAmount = simGovValue * WAD / simGovPrice;
 
-        // TODO add slippage
+        // TODO: add slippage
 
         // Transfer collateral from user to Vault
         vault.depositCollateral(_collateralToken, msg.sender, _collateralAmount);
@@ -157,7 +163,57 @@ contract SimStable is ERC20, AccessControl {
     }
 
 
-    function redeem(uint256 simStableAmount) external {
+    /**
+     * @notice Redeems SimStable tokens for collateral and mints SimGov tokens based on the collateral ratio.
+     * @param _collateralToken The address of the collateral token.
+     * @param _simStableAmount Amount of SimStable tokens to redeem.
+     */
+    function redeem(address _collateralToken, uint256 _simStableAmount) external {
+        // Check if the provided SimStable amount is valid (greater than zero)
+        if (_simStableAmount == 0) {
+            revert InvalidSimStableAmount();
+        }
+
+        // Fetch the price of the collateral token
+        address pair = collateralToPair[_collateralToken];
+        if (pair == address(0)) {
+            revert UnsupportedCollateralToken();
+        }
+
+        // Fetch the price of the collateral token
+        uint256 collateralPrice = getTokenPrice(_collateralToken, pair);
+        if (collateralPrice == 0) {
+            revert PriceFetchFailed();
+        }
+
+        // Fetch the price of SimGov token
+        uint256 simGovPrice = getSimGovPrice();
+        if (simGovPrice == 0) {
+            revert PriceFetchFailed();
+        }
+
+        // Calculate the required collateral and SimGov amounts based on collateral ratio
+        // collateralValue = CR * simStableAmount
+        uint256 collateralValue = (_simStableAmount * collateralRatio) / SCALING_FACTOR;
+        uint256 collateralAmount = (collateralValue * WAD) / collateralPrice;
+
+        // simGovValue = (1 - CR) * simStableAmount
+        uint256 simGovValue = (_simStableAmount * (SCALING_FACTOR - collateralRatio)) / SCALING_FACTOR;
+        // simGovValue = simGovAmount * simGovPrice
+        uint256 simGovAmount = (simGovValue * WAD) / simGovPrice;
+
+        // TODO: add slippage
+
+        // Burn SimStable tokens from user
+        _burn(msg.sender, _simStableAmount);
+
+        // Transfer collateral from Vault to user
+        vault.withdrawCollateral(_collateralToken, msg.sender, collateralAmount);
+
+        // Mint SimGov tokens to user
+        simGov.mint(msg.sender, simGovAmount);
+
+        emit Redeemed(msg.sender, _collateralToken, _simStableAmount, collateralAmount, collateralPrice, simGovAmount, simGovPrice, collateralRatio);
     }
 
 
@@ -216,7 +272,7 @@ contract SimStable is ERC20, AccessControl {
      * @return price The price of the SimGov token.
      */
     function getSimGovPrice() public view returns (uint256) {
-        return 1; // TODO: remove
+        return WAD; // TODO: remove
         return getTokenPrice(WETH_ADDRESS, address(simGov));
     }
 
@@ -256,7 +312,6 @@ contract SimStable is ERC20, AccessControl {
      */
     function addCollateralToken(address _collateralToken, address _pair) external onlyRole(ADMIN_ROLE) {
         require(_collateralToken != address(0), "Invalid collateral token");
-        require(_pair != address(0), "Invalid pair address");
         collateralToPair[_collateralToken] = _pair;
         emit CollateralPairAdded(_collateralToken, _pair);
     }
@@ -266,7 +321,6 @@ contract SimStable is ERC20, AccessControl {
      * @param _collateralToken The address of the collateral token to remove.
      */
     function removeCollateralToken(address _collateralToken) external onlyRole(ADMIN_ROLE) {
-        require(collateralToPair[_collateralToken] != address(0), "Collateral token not found");
         delete collateralToPair[_collateralToken];
         emit CollateralPairRemoved(_collateralToken);
     }
@@ -279,7 +333,12 @@ contract SimStable is ERC20, AccessControl {
         adjustmentCoefficient = _newAdjustmentCoefficient;
     }
 
-
+    // for test
+    // TODO: deside for removal or not. maybe emergency set
+    function setCollateralRatio(uint256 _newCollateralRatio) external onlyRole(ADMIN_ROLE) {
+        if (_newCollateralRatio > SCALING_FACTOR) _newCollateralRatio = _newCollateralRatio;
+        collateralRatio = _newCollateralRatio;
+    }
 
 
 
