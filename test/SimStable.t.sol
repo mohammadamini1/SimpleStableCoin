@@ -12,7 +12,7 @@ contract SimStableTest is BaseTest {
 
     function test_mint() public {
         vm.startPrank(user);
-        simStable.mint(1 ether);
+        simStable.mint(1 ether, 0);
         vm.stopPrank();
 
         // assertGt(simStable.balanceOf(user), 3500 * 10 ** 18);
@@ -21,12 +21,12 @@ contract SimStableTest is BaseTest {
 
     function test_redeem() public {
         vm.startPrank(admin);
-        // simStable.setCollateralRatio(750_000);
-        simStable.setCollateralRatio(500_000);
+        simStable.setCollateralRatio(750_000);
+        // simStable.setCollateralRatio(500_000);
         vm.stopPrank();
 
         vm.startPrank(user);
-        simStable.mint(1 ether);
+        simStable.mint(1 ether, 0);
         vm.stopPrank();
         console.log(simStable.totalSupply());
 
