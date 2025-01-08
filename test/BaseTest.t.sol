@@ -39,10 +39,10 @@ contract BaseTest is Test {
 
     uint256 public initialAdjustmentCoefficient = 1; // Example value
 
-    address constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-    address private constant UNISWAP_FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
-    address private constant UNISWAP_ROUTERV02 = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+    address public constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address public constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
+    address public constant UNISWAP_FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
+    address public constant UNISWAP_ROUTERV02 = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
 
     IWETH weth = IWETH(WETH_ADDRESS);
 
@@ -94,7 +94,7 @@ contract BaseTest is Test {
             // 3347 * 10**18
             // 6600 * 10**18
             // 1800 * 10**18
-            bprice * 2
+            bprice * 1
         );
         simStable.createUniswapV2SimGovPool(
             UNISWAP_ROUTERV02,

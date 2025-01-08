@@ -35,7 +35,7 @@ contract SimStableTest is BaseTest {
         // simStable.setCollateralRatio(1_000_000);
         vm.stopPrank();
 
-        
+
         // vm.startPrank(user);
         // simStable.redeem(simStable.balanceOf(user) / 2);
         // vm.stopPrank();
@@ -47,7 +47,11 @@ contract SimStableTest is BaseTest {
         console.log(simStable.totalSupply());
     }
 
-    function test_get_price() public view {
+    function test_get_price() public {
+        log_get_price();
+    }
+
+    function log_get_price() public view {
         uint simStablePrice = simStable.getTokenPriceSpot(WETH_ADDRESS, address(simStable));
         uint simGovPrice = simStable.getTokenPriceSpot(WETH_ADDRESS, address(simGov));
         console.log("simStablePrice", simStablePrice);
@@ -55,6 +59,13 @@ contract SimStableTest is BaseTest {
     }
 
 
+    function test_add_liquidity() public {
+        vm.startPrank(address(admin));
+        simStable.addLiquidity(UNISWAP_ROUTERV02, WETH_ADDRESS, address(simStable), 1 ether, 3000 ether, address(0));
+        simGov.mint(address(simStable), 30000 ether);
+        simStable.addLiquidity(UNISWAP_ROUTERV02, WETH_ADDRESS, address(simGov), 1 ether, 30000 ether, address(0));
+        vm.stopPrank();        
+    }
 
 
 }

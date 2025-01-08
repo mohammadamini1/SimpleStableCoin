@@ -63,6 +63,7 @@ contract SimStable is ERC20, AccessControl {
     event CollateralPairAdded(address collateralToken, address pair);
     event CollateralPairRemoved(address collateralToken);
     event LiquidityAdded(address tokenA, address tokenB, uint256 amountA, uint256 amountB, address pairAddress);
+    event PairCreated(address indexed tokenA, address indexed tokenB, address pair);
 
     // Constants
     uint256 private constant SCALING_FACTOR = 1e6;
@@ -401,30 +402,16 @@ contract SimStable is ERC20, AccessControl {
             if (pairSimStable == address(0)) {
                 revert PairCreationFailed();
             }
-            // Store the pair address
-            // emit CollateralPairAdded(simStable, pairSimStable);
+            // Emit event for pair creation
+            emit PairCreated(WETH_ADDRESS, simStableAddr, pairSimStable);
         } else {
             revert PairAlreadyExists();
         }
 
-        // Mint simStable and approve router
-        _mint(address(this), initialSimStableAmount);
-        IERC20(WETH_ADDRESS).approve(address(uniswapRouter), initialWETHAmount);
-        IERC20(simStableAddr).approve(address(uniswapRouter), initialSimStableAmount);
+        // // Mint simStable and approve router
+        // _mint(address(this), initialSimStableAmount);
 
-        // Add liquidity to WETH/SimStable pool
-        IUniswapV2Router02(uniswapRouter).addLiquidity(
-            WETH_ADDRESS,
-            simStableAddr,
-            initialWETHAmount,
-            initialSimStableAmount,
-            0, // TODO: slippage
-            0,
-            address(this),
-            block.timestamp
-        );
-
-        emit LiquidityAdded(WETH_ADDRESS, simStableAddr, initialWETHAmount, initialSimStableAmount, pairSimStable);
+        addLiquidity(uniswapRouter, WETH_ADDRESS, simStableAddr, initialWETHAmount, initialSimStableAmount, pairSimStable);
     }
 
 
@@ -451,33 +438,57 @@ contract SimStable is ERC20, AccessControl {
             if (pairSimGov == address(0)) {
                 revert PairCreationFailed();
             }
-            // Store the pair address
-            // emit GovPairAdded(simGovAddr, pairSimGov);
+            // Emit event for pair creation
+            emit PairCreated(WETH_ADDRESS, simGovAddr, pairSimGov);
         } else {
             revert PairAlreadyExists();
         }
 
-        // Mint simgov and approve router
+        // Mint simgov
         simGov.mint(address(this), initialSimGovAmount);
-        IERC20(WETH_ADDRESS).approve(address(uniswapRouter), initialWETHAmount);
-        IERC20(simGovAddr).approve(address(uniswapRouter), initialSimGovAmount);
 
-        // Add liquidity to WETH/SimGov pool
+        addLiquidity(uniswapRouter, WETH_ADDRESS, simGovAddr, initialWETHAmount, initialSimGovAmount, pairSimGov);
+    }
+
+    /**
+     * @notice Adds liquidity to a Uniswap V2 pool.
+     * @param uniswapRouter The address of the Uniswap V2 router.
+     * @param tokenA The address of the first token.
+     * @param tokenB The address of the second token.
+     * @param amountA The amount of the first token to add as liquidity.
+     * @param amountB The amount of the second token to add as liquidity.
+     */
+    function addLiquidity(
+        address uniswapRouter,
+        address tokenA,
+        address tokenB,
+        uint256 amountA,
+        uint256 amountB,
+        address pairAddress
+    ) public onlyRole(ADMIN_ROLE) {
+        if (tokenB == address(this)) {
+            _mint(address(this), amountB);
+        }
+
+        // Approve Uniswap router to spend tokens
+        IERC20(tokenA).approve(address(uniswapRouter), amountA);
+        IERC20(tokenB).approve(address(uniswapRouter), amountB);
+
+        // Add liquidity
         IUniswapV2Router02(uniswapRouter).addLiquidity(
-            WETH_ADDRESS,
-            simGovAddr,
-            initialWETHAmount,
-            initialSimGovAmount,
+            tokenA,
+            tokenB,
+            amountA,
+            amountB,
             0, // TODO: slippage
             0,
             address(this),
             block.timestamp
         );
 
-        emit LiquidityAdded(WETH_ADDRESS, simGovAddr, initialWETHAmount, initialSimGovAmount, pairSimGov);
+        // Emit liquidity addition event
+        emit LiquidityAdded(tokenA, tokenB, amountA, amountB, pairAddress);
     }
-
-
 
 
 
