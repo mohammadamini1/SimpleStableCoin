@@ -58,7 +58,7 @@ contract BaseTest is Test {
         vm.startPrank(admin);
 
         // Deploy SimStable
-        simStable = new SimStable("SimStable", "SIM", initialAdjustmentCoefficient, UNISWAP_FACTORY, WETH_ADDRESS);
+        simStable = new SimStable("SimStable", "SIM", WETH_ADDRESS, DAI_ADDRESS, initialAdjustmentCoefficient, UNISWAP_FACTORY, WETH_ADDRESS);
 
         // Deploy SimGov
         simGov = new SimGov(address(simStable), "SimGov", "SIMGOV");
@@ -69,9 +69,6 @@ contract BaseTest is Test {
         // Set SimGov and Vault addresses in SimStable
         simStable.setSimGov(address(simGov));
         simStable.setVault(address(vault));
-
-        // Add collateral token and its pair to SimStable
-        simStable.addCollateralToken(address(WETH_ADDRESS), address(DAI_ADDRESS));
 
         // mint simGov for user to test
         simGov.grantRole(keccak256("MINTER_ROLE"), admin);
@@ -93,7 +90,9 @@ contract BaseTest is Test {
         simStable.createUniswapV2SimStablePool(
             UNISWAP_ROUTERV02,
             1 * 10**18,
-            3600 * 10**18
+            // 3347 * 10**18
+            // 6600 * 10**18
+            // 1800 * 10**18
         );
         simStable.createUniswapV2SimGovPool(
             UNISWAP_ROUTERV02,
