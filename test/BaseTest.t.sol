@@ -87,14 +87,14 @@ contract BaseTest is Test {
         vm.label(UNISWAP_FACTORY, "UNISWAP_FACTORY");
         vm.label(UNISWAP_ROUTERV02, "uniswapRouterV02");
         vm.startPrank(address(admin));
-        uint bprice = 3338369172050483971226;
+        uint bprice = 3288649126514320807950;
         simStable.createUniswapV2SimStablePool(
             UNISWAP_ROUTERV02,
             1 * 10**18,
             // 3347 * 10**18
             // 6600 * 10**18
             // 1800 * 10**18
-            bprice * 1
+            bprice * 2
         );
         simStable.createUniswapV2SimGovPool(
             UNISWAP_ROUTERV02,

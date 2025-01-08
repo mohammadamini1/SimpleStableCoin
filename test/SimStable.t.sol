@@ -22,7 +22,7 @@ contract SimStableTest is BaseTest {
     function test_redeem() public {
         vm.startPrank(admin);
         // simStable.setCollateralRatio(750_000);
-        simStable.setCollateralRatio(500_000);
+        // simStable.setCollateralRatio(500_000);
         vm.stopPrank();
 
         vm.startPrank(user);
@@ -42,7 +42,7 @@ contract SimStableTest is BaseTest {
         // console.log(simStable.totalSupply());
 
         vm.startPrank(user);
-        simStable.redeem(simStable.balanceOf(user));
+        simStable.redeem(simStable.balanceOf(user), 0, 0);
         vm.stopPrank();
         console.log(simStable.totalSupply());
     }

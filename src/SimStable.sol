@@ -55,7 +55,8 @@ contract SimStable is ERC20, AccessControl {
 
     // Events
     event Minted(address indexed user, uint256 collateralAmount, uint256 collateralPrice, uint256 simStableAmount, uint256 simStablePrice, uint256 simGovAmount, uint256 simGovPrice, uint256 collateralRatio);
-    event Redeemed(address indexed user, address indexed collateralToken, uint256 simStableAmount, uint256 collateralAmount, uint256 collateralPrice, uint256 simGovAmount, uint256 simGovPrice, uint256 collateralRatio);
+    // event Redeemed(address indexed user, uint256 collateralAmount, uint256 collateralPrice, uint256 simStableAmount, uint256 simStablePrice, uint256 simGovAmount, uint256 simGovPrice, uint256 collateralRatio);
+    event Redeemed(address indexed user, uint256 collateralAmount, uint256 simStableAmount, uint256 simGovAmount, uint256 collateralRatio);
     event Buyback(address indexed user, uint256 simGovAmount, uint256 collateralUsed);
     event ReCollateralized(address indexed user, uint256 collateralAdded, uint256 simGovMinted);
     event CollateralRatioAdjusted(uint256 newCollateralRatio);
@@ -105,6 +106,7 @@ contract SimStable is ERC20, AccessControl {
     /**
      * @notice Mints SimStable tokens by depositing collateral and burning SimGov tokens based on the collateral ratio.
      * @param _collateralAmount Amount of collateral to deposit.
+     * @param _minSimStableAmount The minimum amount of SimStable tokens that must be minted. Reverts if slippage exceeds this amount.
      */
     function mint(uint256 _collateralAmount, uint256 _minSimStableAmount) external {
         // Ensure that the collateral amount is greater than zero
@@ -118,7 +120,7 @@ contract SimStable is ERC20, AccessControl {
             revert PriceFetchFailed();
         }
 
-        // Fetch the price of SimGov token
+        // Fetch the price of SimGov token (in WETH)
         uint256 simGovPrice = getSimGovPrice();
         if (simGovPrice == 0) {
             revert PriceFetchFailed();
@@ -158,9 +160,7 @@ contract SimStable is ERC20, AccessControl {
         }
 
         // Check for slippage
-        if (simStableAmount < _minSimStableAmount) {
-            revert SlippageExceeded(_minSimStableAmount, simStableAmount);
-        }
+        _checkSlippage(simStableAmount, _minSimStableAmount);
 
         // Transfer collateral from user to Vault
         vault.depositCollateral(collateralToken, _msgSender(), _collateralAmount);
@@ -173,17 +173,19 @@ contract SimStable is ERC20, AccessControl {
         // Mint SimStable to user
         _mint(_msgSender(), simStableAmount);
 
-        // Emit a comprehensive event with all relevant information
-        emit Minted(_msgSender(), _collateralAmount, collateralPrice, simStableAmount, simStablePrice, simGovAmount, simGovPrice, collateralRatio);
+        // Emit an event with minimum relevant information (because stack too deep error)
+        emit Minted(_msgSender(), _collateralAmount, collateralPrice, simStableAmount, simStablePricePair, simGovAmount, simGovPricePair, collateralRatio);
     }
 
 
     /**
      * @notice Redeems SimStable tokens for collateral and mints SimGov tokens based on the collateral ratio.
      * @param _simStableAmount Amount of SimStable tokens to redeem.
+     * @param _minCollateralAmount The minimum amount of collateral tokens that must be returned to the user. Reverts if slippage exceeds this amount.
+     * @param _minSimGovAmount The minimum amount of SimGov tokens that must be minted to the user. Reverts if slippage exceeds this amount.
      */
-    function redeem(uint256 _simStableAmount) external {
-        // Check if the provided SimStable amount is valid (greater than zero)
+    function redeem(uint256 _simStableAmount, uint256 _minCollateralAmount, uint256 _minSimGovAmount) external {
+        // Check if the provided SimStable amount is valid
         if (_simStableAmount == 0) {
             revert InvalidSimStableAmount();
         }
@@ -194,7 +196,7 @@ contract SimStable is ERC20, AccessControl {
             revert PriceFetchFailed();
         }
 
-        // Fetch the price of SimGov token
+        // Fetch the price of SimGov token (in WETH)
         uint256 simGovPrice = getSimGovPrice();
         if (simGovPrice == 0) {
             revert PriceFetchFailed();
@@ -206,29 +208,28 @@ contract SimStable is ERC20, AccessControl {
             revert PriceFetchFailed();
         }
 
+        // Calculate the value of the simStable based on price
+        // simStablePricePair (based in pair($)) = ETH (based on pair($)) / simStablePrice (based on ETH)
+        uint256 simStablePricePair = (collateralPrice * WAD) / simStablePrice;
+        // simStableValue = simStablePrice * simStableAmount
+        uint256 simStableValue = (simStablePricePair * _simStableAmount) / WAD;
+
+        // Calculate the value of the collateral based on collateral ratio
+        uint256 collateralValue = (simStableValue * collateralRatio) / SCALING_FACTOR;
+
+        // Calculate the value of SimGov based on collateral price
+        uint256 simGovValue = (simStableValue * (SCALING_FACTOR - collateralRatio)) / SCALING_FACTOR;
 
 
-
-
-
-
-
-
-        simGovPrice = (collateralPrice * WAD) / simGovPrice;
-        // Convert simStable/WETH price to simStable/Pair
-        simStablePrice = (collateralPrice * WAD) / simStablePrice;
-
-        // Calculate the required collateral and SimGov amounts based on collateral ratio
-        // collateralValue = CR * simStableAmount
-        uint256 collateralValue = (_simStableAmount * collateralRatio * simStablePrice) / (SCALING_FACTOR * WAD);
+        // Calculate the amount of the collateral based on collateral price
         uint256 collateralAmount = (collateralValue * WAD) / collateralPrice;
+        // Calculate the required SimGov amount
+        uint256 simGovPricePair = (collateralPrice * WAD) / simGovPrice;
+        uint256 simGovAmount = (simGovValue * WAD) / simGovPricePair;
 
-        // simGovValue = (1 - CR) * simStableAmount
-        uint256 simGovValue = (_simStableAmount * (SCALING_FACTOR - collateralRatio)) / SCALING_FACTOR;
-        // simGovValue = simGovAmount * simGovPrice
-        uint256 simGovAmount = (simGovValue * WAD) / simGovPrice;
-
-        // TODO: add slippage
+        // Check for slippage
+        _checkSlippage(collateralAmount, _minCollateralAmount);
+        _checkSlippage(simGovAmount, _minSimGovAmount);
 
         // Burn SimStable tokens from user
         _burn(_msgSender(), _simStableAmount);
@@ -239,7 +240,9 @@ contract SimStable is ERC20, AccessControl {
         // Mint SimGov tokens to user
         simGov.mint(_msgSender(), simGovAmount);
 
-        emit Redeemed(_msgSender(), collateralToken, _simStableAmount, collateralAmount, collateralPrice, simGovAmount, simGovPrice, collateralRatio);
+        // Emit an event with minimum relevant information (because stack too deep error)
+        // emit Redeemed(_msgSender(), collateralAmount, collateralPrice, _simStableAmount, simStablePricePair, simGovAmount, simGovPricePair, collateralRatio);
+        emit Redeemed(_msgSender(), collateralAmount, _simStableAmount, simGovAmount, collateralRatio);
     }
 
 
@@ -255,7 +258,7 @@ contract SimStable is ERC20, AccessControl {
 
 
 
-    /* ---------- INTERNAL ---------- */
+    /* ---------- VIEW ---------- */
 
     /**
      * @notice Retrieves the current price of a token from its Uniswap V2 pair.
@@ -312,6 +315,17 @@ contract SimStable is ERC20, AccessControl {
         // return WAD; // TODO: remove
         return getTokenPrice(WETH_ADDRESS, address(this));
     }
+
+
+    function _checkSlippage(
+        uint256 expected,
+        uint256 actual
+    ) internal pure {
+        if (expected < actual) {
+            revert SlippageExceeded(expected, actual);
+        }
+    }
+
 
 
 
