@@ -42,6 +42,7 @@ contract BaseTest is Test {
     address constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
     address private constant UNISWAP_FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
+    address private constant UNISWAP_ROUTERV02 = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
 
     IWETH weth = IWETH(WETH_ADDRESS);
 
@@ -76,6 +77,29 @@ contract BaseTest is Test {
         simGov.grantRole(keccak256("MINTER_ROLE"), admin);
         simGov.mint(user, 10_000 ether);
 
+        vm.stopPrank();
+
+
+        // initialize pools
+        // fund simStable some weth
+        vm.deal(address(simStable), 100 ether);
+        vm.startPrank(address(simStable));
+        weth.deposit{value: 10 ether}();
+        vm.stopPrank();
+        // create uniswap pair
+        vm.label(UNISWAP_FACTORY, "UNISWAP_FACTORY");
+        vm.label(UNISWAP_ROUTERV02, "uniswapRouterV02");
+        vm.startPrank(address(admin));
+        simStable.createUniswapV2SimStablePool(
+            UNISWAP_ROUTERV02,
+            1 * 10**18,
+            3600 * 10**18
+        );
+        simStable.createUniswapV2SimGovPool(
+            UNISWAP_ROUTERV02,
+            1 * 10**18,
+            36000 * 10**18
+        );
         vm.stopPrank();
 
 

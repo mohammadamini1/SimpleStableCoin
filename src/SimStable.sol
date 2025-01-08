@@ -7,6 +7,8 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 // Import Uniswap V2 interfaces for price feeds
 import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol';
+import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol';
+import '@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol';
 // Import interfaces
 import "./interface/IVault.sol";
 import "./interface/ISimGov.sol";
@@ -45,7 +47,9 @@ contract SimStable is ERC20, AccessControl {
     error PriceFetchFailed();
     error CollateralRatioOutOfBounds();
     error InsufficientSimStableBalance();
-
+    error PairCreationFailed();
+    error PairAlreadyExists();
+    error UnsupportedCollateralToken();
 
     // Events
     event Minted(address indexed user, address indexed collateralToken, uint256 collateralAmount, uint256 collateralPrice, uint256 simStableAmount, uint256 collateralRatio, uint256 simGovAmount, uint256 simGovPrice);
@@ -57,7 +61,7 @@ contract SimStable is ERC20, AccessControl {
     event SimGovUpdated(address simGov);
     event CollateralPairAdded(address collateralToken, address pair);
     event CollateralPairRemoved(address collateralToken);
-    error UnsupportedCollateralToken();
+    event LiquidityAdded(address tokenA, address tokenB, uint256 amountA, uint256 amountB, address pairAddress);
 
     // Constants
     uint256 private constant SCALING_FACTOR = 1e6;
@@ -253,7 +257,7 @@ contract SimStable is ERC20, AccessControl {
      * @param tokenB The address of the second token in the pair.
      * @return price The price of `tokenA` denominated in `tokenB`, scaled by 1e18.
      */
-    function getTokenPriceSpot(address tokenA, address tokenB) internal view returns (uint price) {
+    function getTokenPriceSpot(address tokenA, address tokenB) public view returns (uint price) {
         (address token0, address token1) = sortTokens(tokenA, tokenB);
         IUniswapV2Pair pair = IUniswapV2Pair(pairFor(UNISWAP_FACTORY, token0, token1));
         (uint reserve0, uint reserve1,) = pair.getReserves();
@@ -272,8 +276,19 @@ contract SimStable is ERC20, AccessControl {
      * @return price The price of the SimGov token.
      */
     function getSimGovPrice() public view returns (uint256) {
-        return WAD; // TODO: remove
+        // return WAD; // TODO: remove
         return getTokenPrice(WETH_ADDRESS, address(simGov));
+    }
+
+
+    /**
+     * @notice Retrieves the current price of the SimStable token.
+     * @dev This function fetch the price of SimStable in terms of WETH.
+     * @return price The price of the SimGov token.
+     */
+    function getSimStablePrice() public view returns (uint256) {
+        // return WAD; // TODO: remove
+        return getTokenPrice(WETH_ADDRESS, address(this));
     }
 
 
@@ -342,6 +357,102 @@ contract SimStable is ERC20, AccessControl {
 
 
 
+    /**
+     * @notice Creates a Uniswap V2 liquidity pool for the WETH and SimStable token pair.
+     * @param uniswapRouter Address of the Uniswap V2 router contract.
+     * @param initialWETHAmount Initial amount of WETH to provide as liquidity.
+     * @param initialSimStableAmount Initial amount of SimStable to provide as liquidity.
+     * 
+    */
+    function createUniswapV2SimStablePool(address uniswapRouter, uint256 initialWETHAmount, uint256 initialSimStableAmount) external onlyRole(ADMIN_ROLE) {
+        IUniswapV2Factory factory = IUniswapV2Factory(UNISWAP_FACTORY);
+
+        // Create WETH/SimStable Pool
+        address simStableAddr = address(this);
+
+        // Check if the WETH/SimStable pair already exists
+        address pairSimStable = factory.getPair(WETH_ADDRESS, simStableAddr);
+        if (pairSimStable == address(0)) {
+            // Create the pair
+            pairSimStable = factory.createPair(WETH_ADDRESS, simStableAddr);
+            if (pairSimStable == address(0)) {
+                revert PairCreationFailed();
+            }
+            // Store the pair address
+            // emit CollateralPairAdded(simStable, pairSimStable);
+        } else {
+            revert PairAlreadyExists();
+        }
+
+        // Mint simStable and approve router
+        _mint(address(this), initialSimStableAmount);
+        IERC20(WETH_ADDRESS).approve(address(uniswapRouter), initialWETHAmount);
+        IERC20(simStableAddr).approve(address(uniswapRouter), initialSimStableAmount);
+
+        // Add liquidity to WETH/SimStable pool
+        IUniswapV2Router02(uniswapRouter).addLiquidity(
+            WETH_ADDRESS,
+            simStableAddr,
+            initialWETHAmount,
+            initialSimStableAmount,
+            0, // TODO: slippage
+            0,
+            address(this),
+            block.timestamp
+        );
+
+        emit LiquidityAdded(WETH_ADDRESS, simStableAddr, initialWETHAmount, initialSimStableAmount, pairSimStable);
+    }
+
+
+    /**
+     * @notice Creates a Uniswap V2 liquidity pool for the WETH and SimGov token pair.
+     * @param uniswapRouter Address of the Uniswap V2 router contract.
+     * @param initialWETHAmount Initial amount of WETH to provide as liquidity.
+     * @param initialSimGovAmount Initial amount of SimGov to provide as liquidity.
+     */
+    function createUniswapV2SimGovPool(address uniswapRouter, uint256 initialWETHAmount, uint256 initialSimGovAmount) external onlyRole(ADMIN_ROLE) {
+        IUniswapV2Factory factory = IUniswapV2Factory(UNISWAP_FACTORY);
+
+        // Create WETH/SimGov Pool
+        address simGovAddr = address(simGov);
+        if (simGovAddr == address(0)) {
+            revert InvalidSimGovAddress();
+        }
+
+        // Check if the WETH/SimGov pair already exists
+        address pairSimGov = factory.getPair(WETH_ADDRESS, simGovAddr);
+        if (pairSimGov == address(0)) {
+            // Create the pair
+            pairSimGov = factory.createPair(WETH_ADDRESS, simGovAddr);
+            if (pairSimGov == address(0)) {
+                revert PairCreationFailed();
+            }
+            // Store the pair address
+            // emit GovPairAdded(simGovAddr, pairSimGov);
+        } else {
+            revert PairAlreadyExists();
+        }
+
+        // Mint simgov and approve router
+        simGov.mint(address(this), initialSimGovAmount);
+        IERC20(WETH_ADDRESS).approve(address(uniswapRouter), initialWETHAmount);
+        IERC20(simGovAddr).approve(address(uniswapRouter), initialSimGovAmount);
+
+        // Add liquidity to WETH/SimGov pool
+        IUniswapV2Router02(uniswapRouter).addLiquidity(
+            WETH_ADDRESS,
+            simGovAddr,
+            initialWETHAmount,
+            initialSimGovAmount,
+            0, // TODO: slippage
+            0,
+            address(this),
+            block.timestamp
+        );
+
+        emit LiquidityAdded(WETH_ADDRESS, simGovAddr, initialWETHAmount, initialSimGovAmount, pairSimGov);
+    }
 
 
 
