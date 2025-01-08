@@ -39,17 +39,13 @@ contract SimStable is ERC20, AccessControl {
     address public collateralTokenPair;
 
     // Errors
-    error InvalidVaultAddress();
-    error InvalidSimGovAddress();
+    error ZeroAddress();
     error InvalidCollateralAmount();
     error InvalidSimStableAmount();
     error InvalidSimGovAmount();
     error PriceFetchFailed();
-    error CollateralRatioOutOfBounds();
-    error InsufficientSimStableBalance();
     error PairCreationFailed();
     error PairAlreadyExists();
-    error UnsupportedCollateralToken();
     error SlippageExceeded(uint256 expected, uint256 actual);
 
     // Events
@@ -61,6 +57,9 @@ contract SimStable is ERC20, AccessControl {
     event CollateralRatioAdjusted(uint256 newCollateralRatio);
     event VaultUpdated(address newVault);
     event SimGovUpdated(address simGov);
+    event CollateralTokenUpdated(address newCollateralToken);
+    event CollateralTokenPairUpdated(address newCollateralTokenPair);
+    event AdjustmentCoefficientUpdated(uint256 newAdjustmentCoefficient);
     event CollateralPairAdded(address collateralToken, address pair);
     event CollateralPairRemoved(address collateralToken);
     event LiquidityAdded(address tokenA, address tokenB, uint256 amountA, uint256 amountB, address pairAddress);
@@ -69,7 +68,7 @@ contract SimStable is ERC20, AccessControl {
     uint256 private constant SCALING_FACTOR = 1e6;
     address private immutable UNISWAP_FACTORY;
     address private immutable WETH_ADDRESS;
-    uint256 constant WAD = 1e18;
+    uint256 private constant WAD = 1e18;
 
 
 
@@ -322,7 +321,7 @@ contract SimStable is ERC20, AccessControl {
      */
     function setVault(address _newVault) external onlyRole(ADMIN_ROLE) {
         if (_newVault == address(0)) {
-            revert InvalidVaultAddress();
+            revert ZeroAddress();
         }
         vault = IVault(_newVault);
         emit VaultUpdated(_newVault);
@@ -334,7 +333,7 @@ contract SimStable is ERC20, AccessControl {
      */
     function setSimGov(address _simGov) external onlyRole(ADMIN_ROLE) {
         if (_simGov == address(0)) {
-            revert InvalidSimGovAddress();
+            revert ZeroAddress();
         }
         simGov = ISimGov(_simGov);
         emit SimGovUpdated(_simGov);
@@ -346,6 +345,7 @@ contract SimStable is ERC20, AccessControl {
      */
     function setAdjustmentCoefficient(uint256 _newAdjustmentCoefficient) external onlyRole(ADMIN_ROLE) {
         adjustmentCoefficient = _newAdjustmentCoefficient;
+        emit AdjustmentCoefficientUpdated(_newAdjustmentCoefficient);
     }
 
     // for test
@@ -355,6 +355,29 @@ contract SimStable is ERC20, AccessControl {
         collateralRatio = _newCollateralRatio;
     }
 
+    /**
+     * @notice Updates the address of the collateral token.
+     * @param _newCollateralToken The new address for the collateral token.
+     */
+    function setCollateralToken(address _newCollateralToken) external onlyRole(ADMIN_ROLE) {
+        if (_newCollateralToken == address(0)) {
+            revert ZeroAddress();
+        }
+        collateralToken = _newCollateralToken;
+        emit CollateralTokenUpdated(_newCollateralToken);
+    }
+
+    /**
+     * @notice Updates the address of the collateral token pair.
+     * @param _newCollateralTokenPair The new address for the collateral token pair.
+     */
+    function setCollateralTokenPair(address _newCollateralTokenPair) external onlyRole(ADMIN_ROLE) {
+        if (_newCollateralTokenPair == address(0)) {
+            revert ZeroAddress();
+        }
+        collateralTokenPair = _newCollateralTokenPair;
+        emit CollateralTokenPairUpdated(_newCollateralTokenPair);
+    }
 
 
     /**
@@ -417,7 +440,7 @@ contract SimStable is ERC20, AccessControl {
         // Create WETH/SimGov Pool
         address simGovAddr = address(simGov);
         if (simGovAddr == address(0)) {
-            revert InvalidSimGovAddress();
+            revert ZeroAddress();
         }
 
         // Check if the WETH/SimGov pair already exists
