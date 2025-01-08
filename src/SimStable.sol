@@ -122,6 +122,7 @@ contract SimStable is ERC20, AccessControl {
         if (simGovPrice == 0) {
             revert PriceFetchFailed();
         }
+        simGovPrice = (collateralPrice * WAD) / simGovPrice;
 
         // Fetch the price of SimStable token (in WETH)
         uint256 simStablePrice = getSimStablePrice();
@@ -196,6 +197,7 @@ contract SimStable is ERC20, AccessControl {
         if (simGovPrice == 0) {
             revert PriceFetchFailed();
         }
+        simGovPrice = (collateralPrice * WAD) / simGovPrice;
 
         // Fetch the price of SimStable token (in WETH)
         uint256 simStablePrice = getSimStablePrice();

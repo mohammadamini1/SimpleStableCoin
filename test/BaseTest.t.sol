@@ -72,7 +72,7 @@ contract BaseTest is Test {
 
         // mint simGov for user to test
         simGov.grantRole(keccak256("MINTER_ROLE"), admin);
-        simGov.mint(user, 10_000 ether);
+        simGov.mint(user, 100_000 ether);
 
         vm.stopPrank();
 
@@ -97,7 +97,7 @@ contract BaseTest is Test {
         simStable.createUniswapV2SimGovPool(
             UNISWAP_ROUTERV02,
             1 * 10**18,
-            36000 * 10**18
+            33470 * 10**18
         );
         vm.stopPrank();
 
