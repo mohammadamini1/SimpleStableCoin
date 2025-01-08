@@ -37,7 +37,8 @@ contract BaseTest is Test {
     address public admin = address(0x1);
     address public user = address(0x2);
 
-    uint256 public initialAdjustmentCoefficient = 1; // Example value
+    uint256 public initialAdjustmentCoefficient = 1;
+    uint256 public targetCollateralRatio = 800_000;
 
     address public constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address public constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
@@ -58,7 +59,7 @@ contract BaseTest is Test {
         vm.startPrank(admin);
 
         // Deploy SimStable
-        simStable = new SimStable("SimStable", "SIM", WETH_ADDRESS, DAI_ADDRESS, initialAdjustmentCoefficient, UNISWAP_FACTORY, WETH_ADDRESS);
+        simStable = new SimStable("SimStable", "SIM", WETH_ADDRESS, DAI_ADDRESS, initialAdjustmentCoefficient, targetCollateralRatio, UNISWAP_FACTORY, WETH_ADDRESS);
 
         // Deploy SimGov
         simGov = new SimGov(address(simStable), "SimGov", "SIMGOV");
@@ -100,7 +101,7 @@ contract BaseTest is Test {
             UNISWAP_ROUTERV02,
             1 * 10**18,
             // 33470 * 10**18
-            bprice * 10
+            bprice * 1
         );
         vm.stopPrank();
 
@@ -109,7 +110,7 @@ contract BaseTest is Test {
         vm.deal(user, 100 ether);
         vm.startPrank(user);
         weth.approve(address(vault), type(uint256).max);
-        weth.deposit{value: 1 ether}();
+        weth.deposit{value: 100 ether}();
         vm.stopPrank();
 
 

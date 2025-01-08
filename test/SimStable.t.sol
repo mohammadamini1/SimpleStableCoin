@@ -68,4 +68,35 @@ contract SimStableTest is BaseTest {
     }
 
 
+
+
+    function test_buyback() public {
+        vm.startPrank(admin);
+        simStable.setCollateralRatio(1_000_000);
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        simStable.mint(10 ether, 0);
+        vm.stopPrank();
+
+        vm.startPrank(admin);
+        simStable.setCollateralRatio(500_000);
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        simStable.buyback(7_000 ether);
+        vm.stopPrank();
+
+        vm.startPrank(admin);
+        simStable.setCollateralRatio(600_000);
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        simStable.buyback(400 ether);
+        vm.stopPrank();
+    }
+
+
+
+
 }

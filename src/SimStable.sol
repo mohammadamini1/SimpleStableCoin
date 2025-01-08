@@ -15,6 +15,7 @@ import "./interface/ISimGov.sol";
 
 
 
+import "forge-std/Test.sol"; // TODO: remove
 // TODO: override transfer and transferfrom
 // TODO: add simulation functions to calculate simStable amount for mint or redeem
 
@@ -28,8 +29,11 @@ contract SimStable is ERC20, AccessControl {
     // Vault contract
     IVault public vault;
 
-    // Collateral Ratio (scaled by 1e6, e.g., 750000 for 75%)
+    // Collateral Ratio (scaled by 1e6, e.g., 750_000 for 75%)
     uint256 public collateralRatio;
+
+    // Target Collateral Ratio (scaled by 1e6)
+    uint256 public targetCollateralRatio;
 
     // Price adjustment coefficient (k, scaled by 1e6)
     uint256 public adjustmentCoefficient;
@@ -47,12 +51,17 @@ contract SimStable is ERC20, AccessControl {
     error PairCreationFailed();
     error PairAlreadyExists();
     error SlippageExceeded(uint256 expected, uint256 actual);
+    error TargetCollateralRatioTooHigh();
+    error CollateralRatioNotExceedingTarget();
+    error InsufficientSurplusCollateral(uint256 required, uint256 surplus);
+    error InsufficientCollateral();
 
     // Events
     event Minted(address indexed user, uint256 collateralAmount, uint256 collateralPrice, uint256 simStableAmount, uint256 simStablePrice, uint256 simGovAmount, uint256 simGovPrice, uint256 collateralRatio);
     // event Redeemed(address indexed user, uint256 collateralAmount, uint256 collateralPrice, uint256 simStableAmount, uint256 simStablePrice, uint256 simGovAmount, uint256 simGovPrice, uint256 collateralRatio);
     event Redeemed(address indexed user, uint256 collateralAmount, uint256 simStableAmount, uint256 simGovAmount, uint256 collateralRatio);
-    event Buyback(address indexed user, uint256 simGovAmount, uint256 collateralUsed);
+    // event Buyback(address indexed user, uint256 simGovAmount, uint256 collateralUsed);
+    event BuybackExecuted(address indexed user, uint256 simGovAmountBurned, uint256 collateralAmountWithdrawn, uint256 collateralPrice, uint256 simGovPrice, uint256 surplusCollateralValue, uint256 currentCollateralRatio, uint256 targetCollateralRatio);
     event ReCollateralized(address indexed user, uint256 collateralAdded, uint256 simGovMinted);
     event CollateralRatioAdjusted(uint256 newCollateralRatio);
     event VaultUpdated(address newVault);
@@ -81,6 +90,7 @@ contract SimStable is ERC20, AccessControl {
         address _collateralToken,
         address _collateralTokenPair,
         uint256 _adjustmentCoeff,
+        uint256 _targetCollateralRatio,
         address _uniswapFactoryAddress,
         address _wethAddress
     ) ERC20(_name, _symbol) {
@@ -91,6 +101,10 @@ contract SimStable is ERC20, AccessControl {
         // Initialize parameters
         collateralRatio = SCALING_FACTOR; // 100% at first
         adjustmentCoefficient = _adjustmentCoeff;
+        if (_targetCollateralRatio >= collateralRatio) {
+            revert TargetCollateralRatioTooHigh();
+        }
+        targetCollateralRatio = _targetCollateralRatio;
 
         UNISWAP_FACTORY = _uniswapFactoryAddress;
         WETH_ADDRESS = _wethAddress;
@@ -227,7 +241,62 @@ contract SimStable is ERC20, AccessControl {
     }
 
 
-    function buybackSimGov(uint256 simGovAmount) external {
+    /**
+     * @notice Buys back SimGov tokens using surplus collateral when the collateral ratio exceeds the target threshold.
+     * @param simGovAmount The amount of SimGov tokens to buy back.
+     */
+    function buyback(uint256 simGovAmount) external {
+        // Check if the provided simGovAmount amount is valid
+        if (simGovAmount == 0) {
+            revert InvalidSimGovAmount();
+        }
+        // Ensure the current collateral ratio exceeds the target collateral ratio before allowing a buyback.
+        if (collateralRatio >= targetCollateralRatio) {
+            revert CollateralRatioNotExceedingTarget();
+        }
+
+        // Fetch current prices
+        uint256 collateralPrice = getTokenPrice(collateralToken, collateralTokenPair);
+        uint256 simGovPrice = getSimGovPrice();
+        uint256 simGovPricePair = (collateralPrice * WAD) / simGovPrice;
+        uint256 simStablePrice = getSimStablePrice();
+        uint256 simStablePricePair = (collateralPrice * WAD) / simStablePrice;
+
+        // Calculate the total value of SimStable supply
+        uint256 totalSimStableValue = (totalSupply() * simStablePricePair) / WAD;
+
+        // Get total collateral balance and its value
+        uint256 totalCollateral = vault.getCollateralBalance(collateralToken);
+        uint256 totalCollateralValue = (totalCollateral * collateralPrice) / WAD;
+
+        // Calculate the required collateral value based on the current collateral ratio
+        uint256 requiredCollateralValue = (totalSimStableValue * collateralRatio) / SCALING_FACTOR;
+
+        // Calculate surplus collateral value
+        if (totalCollateralValue < requiredCollateralValue) {
+            revert InsufficientCollateral();
+        }
+        uint256 surplusCollateralValue = totalCollateralValue - requiredCollateralValue;
+
+        // Calculate the required SimGov value for the buyback
+        uint256 requiredSimGovValue = (simGovAmount * simGovPricePair) / WAD;
+
+        // Ensure sufficient surplus collateral value exists
+        if (requiredSimGovValue > surplusCollateralValue) {
+            revert InsufficientSurplusCollateral(requiredSimGovValue, surplusCollateralValue);
+        }
+
+        // Calculate the surplus collateral amount to withdraw
+        uint256 requiredCollateralAmount = (requiredSimGovValue * WAD) / collateralPrice;
+
+        // Withdraw the required collateral from the Vault
+        vault.withdrawCollateral(collateralToken, _msgSender(), requiredCollateralAmount);
+
+        // Burn the acquired SimGov tokens
+        simGov.burn(_msgSender(), simGovAmount);
+
+        // Emit the Buyback event
+        emit BuybackExecuted(_msgSender(), simGovAmount, requiredCollateralAmount, collateralPrice, simGovPrice, surplusCollateralValue, collateralRatio, targetCollateralRatio);
     }
 
 
