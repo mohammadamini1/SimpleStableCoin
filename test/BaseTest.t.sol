@@ -90,7 +90,7 @@ contract BaseTest is Test {
         simStable.createUniswapV2SimStablePool(
             UNISWAP_ROUTERV02,
             1 * 10**18,
-            // 3347 * 10**18
+            3347 * 10**18
             // 6600 * 10**18
             // 1800 * 10**18
         );
