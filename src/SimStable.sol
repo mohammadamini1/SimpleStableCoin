@@ -13,7 +13,6 @@ import '@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol';
 import "./interface/IVault.sol";
 import "./interface/ISimGov.sol";
 
-import "forge-std/Test.sol";
 
 
 // TODO: override transfer and transferfrom
@@ -116,21 +115,12 @@ contract SimStable is ERC20, AccessControl {
 
         // Fetch the price of the collateral token
         uint256 collateralPrice = getTokenPrice(collateralToken, collateralTokenPair);
-        if (collateralPrice == 0) {
-            revert PriceFetchFailed();
-        }
 
         // Fetch the price of SimGov token (in WETH)
         uint256 simGovPrice = getSimGovPrice();
-        if (simGovPrice == 0) {
-            revert PriceFetchFailed();
-        }
 
         // Fetch the price of SimStable token (in WETH)
         uint256 simStablePrice = getSimStablePrice();
-        if (simStablePrice == 0) {
-            revert PriceFetchFailed();
-        }
 
         // Calculate the value of the collateral based on collateral price
         uint256 collateralValue = (_collateralAmount * collateralPrice) / WAD;
@@ -192,21 +182,12 @@ contract SimStable is ERC20, AccessControl {
 
         // Fetch the price of the collateral token
         uint256 collateralPrice = getTokenPrice(collateralToken, collateralTokenPair);
-        if (collateralPrice == 0) {
-            revert PriceFetchFailed();
-        }
 
         // Fetch the price of SimGov token (in WETH)
         uint256 simGovPrice = getSimGovPrice();
-        if (simGovPrice == 0) {
-            revert PriceFetchFailed();
-        }
 
         // Fetch the price of SimStable token (in WETH)
         uint256 simStablePrice = getSimStablePrice();
-        if (simStablePrice == 0) {
-            revert PriceFetchFailed();
-        }
 
         // Calculate the value of the simStable based on price
         // simStablePricePair (based in pair($)) = ETH (based on pair($)) / simStablePrice (based on ETH)
@@ -271,7 +252,10 @@ contract SimStable is ERC20, AccessControl {
      */
     // TODO: implement TWAP
     function getTokenPrice(address tokenA, address tokenB) internal view returns (uint price) {
-        return getTokenPriceSpot(tokenA, tokenB);
+        price = getTokenPriceSpot(tokenA, tokenB);
+        if (price == 0) {
+            revert PriceFetchFailed();
+        }
     }
 
 
