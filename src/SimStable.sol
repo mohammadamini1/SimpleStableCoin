@@ -54,7 +54,7 @@ contract SimStable is ERC20, AccessControl {
     error SlippageExceeded(uint256 expected, uint256 actual);
 
     // Events
-    event Minted(address indexed user, address indexed collateralToken, uint256 collateralAmount, uint256 collateralPrice, uint256 collateralValue, uint256 simStableAmount, uint256 simStablePrice, uint256 simStablePricePair, uint256 simStableValue, uint256 simGovAmount, uint256 simGovPrice, uint256 simGovPricePair, uint256 simGovValue, uint256 collateralRatio);
+    event Minted(address indexed user, uint256 collateralAmount, uint256 collateralPrice, uint256 simStableAmount, uint256 simStablePrice, uint256 simGovAmount, uint256 simGovPrice, uint256 collateralRatio);
     event Redeemed(address indexed user, address indexed collateralToken, uint256 simStableAmount, uint256 collateralAmount, uint256 collateralPrice, uint256 simGovAmount, uint256 simGovPrice, uint256 collateralRatio);
     event Buyback(address indexed user, uint256 simGovAmount, uint256 collateralUsed);
     event ReCollateralized(address indexed user, uint256 collateralAdded, uint256 simGovMinted);
@@ -143,13 +143,13 @@ contract SimStable is ERC20, AccessControl {
 
 
         // Calculate the required SimGov amount
-        // simGovPrice (based in pair($)) = simGovPrice (based on ETH) / ETH (based on pair($))
+        // simGovPricePair (based in pair($)) = ETH (based on pair($)) / simGovPrice (based on ETH)
         uint256 simGovPricePair = (collateralPrice * WAD) / simGovPrice;
         // simGovValue = simGovPrice * simGovAmount
         uint256 simGovAmount = (simGovValue * WAD) / simGovPricePair;
 
         // Calculate the required SimStable amount
-        // simStablePricePair (based in pair($)) = simStablePrice (based on ETH) / ETH (based on pair($))
+        // simStablePricePair (based in pair($)) = ETH (based on pair($)) / simStablePrice (based on ETH)
         uint256 simStablePricePair = (collateralPrice * WAD) / simStablePrice;
         // simStableValue = simStablePrice * simStableAmount
         uint256 simStableAmount = (simStableValue * WAD) / simStablePricePair;
@@ -174,7 +174,7 @@ contract SimStable is ERC20, AccessControl {
         _mint(_msgSender(), simStableAmount);
 
         // Emit a comprehensive event with all relevant information
-        emit Minted(_msgSender(), collateralToken, _collateralAmount, collateralPrice, collateralValue, simStableAmount, simStablePrice, simStablePricePair, simStableValue, simGovAmount, simGovPrice, simGovPricePair, simGovValue, collateralRatio);
+        emit Minted(_msgSender(), _collateralAmount, collateralPrice, simStableAmount, simStablePrice, simGovAmount, simGovPrice, collateralRatio);
     }
 
 
@@ -199,13 +199,22 @@ contract SimStable is ERC20, AccessControl {
         if (simGovPrice == 0) {
             revert PriceFetchFailed();
         }
-        simGovPrice = (collateralPrice * WAD) / simGovPrice;
 
         // Fetch the price of SimStable token (in WETH)
         uint256 simStablePrice = getSimStablePrice();
         if (simStablePrice == 0) {
             revert PriceFetchFailed();
         }
+
+
+
+
+
+
+
+
+
+        simGovPrice = (collateralPrice * WAD) / simGovPrice;
         // Convert simStable/WETH price to simStable/Pair
         simStablePrice = (collateralPrice * WAD) / simStablePrice;
 
