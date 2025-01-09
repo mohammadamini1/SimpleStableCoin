@@ -35,6 +35,12 @@ contract SimStable is ERC20, AccessControl {
     // Target Collateral Ratio (scaled by 1e6)
     uint256 public targetCollateralRatio;
     uint256 public reCollateralizeTargetRatio;
+    // Minimum and Maximum Collateral Ratios
+    uint256 public minCollateralRatio;
+    uint256 public maxCollateralRatio;
+
+    // Price Peg (scaled by 1e18, e.g., 1e18 represents 1 USD)
+    uint256 constant public pricePeg = 1e18;
 
     // Price adjustment coefficient (k, scaled by 1e6)
     uint256 public adjustmentCoefficient;
@@ -58,6 +64,7 @@ contract SimStable is ERC20, AccessControl {
     error CollateralRatioNotDroppingingTarget();
     error InsufficientSurplusCollateral(uint256 required, uint256 surplus);
     error InsufficientCollateral();
+    error InvalidMinOrMaxCollateralRatioSet(uint256 minCollateralRatio, uint256 maxCollateralRatio); 
 
     // Events
     event Minted(address indexed user, uint256 collateralAmount, uint256 collateralPrice, uint256 simStableAmount, uint256 simStablePrice, uint256 simGovAmount, uint256 simGovPrice, uint256 collateralRatio);
@@ -66,7 +73,7 @@ contract SimStable is ERC20, AccessControl {
     // event Buyback(address indexed user, uint256 simGovAmount, uint256 collateralUsed);
     event BuybackExecuted(address indexed user, uint256 simGovAmountBurned, uint256 collateralAmountWithdrawn, uint256 collateralPrice, uint256 simGovPrice, uint256 surplusCollateralValue, uint256 currentCollateralRatio, uint256 targetCollateralRatio);
     event ReCollateralized(address indexed user, uint256 collateralAdded, uint256 simGovMinted);
-    event CollateralRatioAdjusted(uint256 newCollateralRatio);
+    event CollateralRatioAdjusted(uint256 newCollateralRatio, uint256 simStablePricePair);
     event VaultUpdated(address newVault);
     event SimGovUpdated(address simGov);
     event CollateralTokenUpdated(address newCollateralToken);
@@ -76,6 +83,8 @@ contract SimStable is ERC20, AccessControl {
     event CollateralPairRemoved(address collateralToken);
     event LiquidityAdded(address tokenA, address tokenB, uint256 amountA, uint256 amountB, address pairAddress);
     event PairCreated(address indexed tokenA, address indexed tokenB, address pair);
+    event MinCollateralRatioUpdated(uint256 oldMinCollateralRatio, uint256 newMinCollateralRatio);
+    event MaxCollateralRatioUpdated(uint256 oldMaxCollateralRatio, uint256 newMaxCollateralRatio);
 
     // Constants
     uint256 private constant SCALING_FACTOR = 1e6;
@@ -95,6 +104,7 @@ contract SimStable is ERC20, AccessControl {
         uint256 _adjustmentCoeff,
         uint256 _targetCollateralRatio,
         uint256 _reCollateralizeTargetRatio,
+        uint256 _minCollateralRatio,
         address _uniswapFactoryAddress,
         address _wethAddress
     ) ERC20(_name, _symbol) {
@@ -113,6 +123,8 @@ contract SimStable is ERC20, AccessControl {
             revert ReCollateralizeTargetRatioTooHigh();
         }
         reCollateralizeTargetRatio = _reCollateralizeTargetRatio;
+        minCollateralRatio = _minCollateralRatio;
+        maxCollateralRatio = SCALING_FACTOR;
 
         UNISWAP_FACTORY = _uniswapFactoryAddress;
         WETH_ADDRESS = _wethAddress;
@@ -348,6 +360,39 @@ contract SimStable is ERC20, AccessControl {
     }
 
 
+    /**
+     * @notice Adjusts the collateral ratio based on the deviation of SimStable's price from the peg.
+     */
+    function adjustCollateralRatio() public {
+        // Fetch current price of SimStable in WETH
+        uint256 collateralPrice = getTokenPrice(collateralToken, collateralTokenPair);
+        uint256 simStablePrice = getSimStablePrice();
+        uint256 simStablePricePair = (collateralPrice * WAD) / simStablePrice;
+
+        // Calculate deviation: pricePeg - priceSimStable
+        // Assuming pricePeg is in WETH terms
+        int256 deviation = int256(pricePeg) - int256(simStablePricePair);
+
+        // Calculate adjustment: k * deviation / SCALING_FACTOR
+        // adjustmentCoefficient is scaled by 1e6
+        int256 adjustment = (int256(adjustmentCoefficient) * deviation) / int256(SCALING_FACTOR);
+
+        // Calculate new collateral ratio
+        int256 newCollateralRatio = int256(collateralRatio) + adjustment;
+
+        // Ensure the new collateral ratio stays within the defined boundaries
+        if (newCollateralRatio < int256(minCollateralRatio)) {
+            newCollateralRatio = int256(minCollateralRatio);
+        } else if (newCollateralRatio > int256(maxCollateralRatio)) {
+            newCollateralRatio = int256(maxCollateralRatio);
+        }
+
+        // Update the collateral ratio
+        collateralRatio = uint256(newCollateralRatio);
+
+        emit CollateralRatioAdjusted(collateralRatio, simStablePricePair);
+    }
+
 
 
 
@@ -493,6 +538,31 @@ contract SimStable is ERC20, AccessControl {
         emit CollateralTokenPairUpdated(_newCollateralTokenPair);
     }
 
+    /**
+     * @notice Sets a new minimum collateral ratio.
+     * @param _minCollateralRatio The new minimum collateral ratio, scaled by 1e6.
+     */
+    function setMinCollateralRatio(uint256 _minCollateralRatio) external onlyRole(ADMIN_ROLE) {
+        // Ensure the new minimum collateral ratio is valid
+        if (_minCollateralRatio >= maxCollateralRatio) {
+            revert InvalidMinOrMaxCollateralRatioSet(_minCollateralRatio, maxCollateralRatio);
+        }
+        minCollateralRatio = _minCollateralRatio;
+        emit MinCollateralRatioUpdated(minCollateralRatio, _minCollateralRatio);
+    }
+
+    /**
+     * @notice Sets a new maximum collateral ratio.
+     * @param _maxCollateralRatio The new maximum collateral ratio, scaled by 1e6.
+     */
+    function setMaxCollateralRatio(uint256 _maxCollateralRatio) external onlyRole(ADMIN_ROLE) {
+        // Ensure the new maximum collateral ratio is valid
+        if (_maxCollateralRatio > SCALING_FACTOR || _maxCollateralRatio <= minCollateralRatio) {
+            revert InvalidMinOrMaxCollateralRatioSet(minCollateralRatio, _maxCollateralRatio);
+        }
+        maxCollateralRatio = _maxCollateralRatio;
+        emit MaxCollateralRatioUpdated(maxCollateralRatio, _maxCollateralRatio);
+    }
 
     /**
      * @notice Creates a Uniswap V2 liquidity pool for the WETH and SimStable token pair.

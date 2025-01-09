@@ -97,6 +97,33 @@ contract SimStableTest is BaseTest {
     }
 
 
+    function test_reCollateralize() public {
+        vm.startPrank(admin);
+        simStable.setCollateralRatio(1_000_000);
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        simStable.mint(10 ether, 0);
+        vm.stopPrank();
+
+        vm.startPrank(admin);
+        simStable.setCollateralRatio(400_000);
+        vm.stopPrank();
+
+        uint256 totalCollateralBefore = vault.getCollateralBalance(WETH_ADDRESS);
+
+        vm.startPrank(user);
+        simStable.reCollateralize(20 ether, 0);
+        vm.stopPrank();
+
+        uint256 totalCollateralAfter = vault.getCollateralBalance(WETH_ADDRESS);
+        console.log("totalCollateralBefore", totalCollateralBefore);
+        console.log("totalCollateralAfter", totalCollateralAfter);
+
+    }
+
+
+    
 
 
 }
