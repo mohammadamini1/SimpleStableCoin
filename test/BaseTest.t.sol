@@ -112,7 +112,8 @@ contract BaseTest is Test {
             // 3347 * 10**18
             // 6600 * 10**18
             // 1800 * 10**18
-            bprice * 1
+            // bprice / 2
+            2988649126514320807950
         );
         simStable.createUniswapV2SimGovPool(
             UNISWAP_ROUTERV02,

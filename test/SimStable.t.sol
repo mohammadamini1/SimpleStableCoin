@@ -134,9 +134,21 @@ contract SimStableTest is BaseTest {
         // vm.warp(block.timestamp + 599);
         simStable.adjustCollateralRatio();
 
-
     }
 
+
+    function test_transfer() public {
+        vm.startPrank(user);
+        simStable.mint(1 ether, 0);
+        address tmp = address(0x0110010101);
+        
+        vm.warp(block.timestamp + 701);
+        simStable.transfer(tmp, 10);
+        vm.warp(block.timestamp + 701);
+        simStable.transfer(tmp, 10);
+        vm.stopPrank();
+
+    }
 
 
 }

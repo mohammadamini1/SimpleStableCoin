@@ -16,7 +16,6 @@ import "./interface/ISimGov.sol";
 
 
 import "forge-std/Test.sol"; // TODO: remove
-// TODO: override transfer and transferfrom
 // TODO: add simulation functions to calculate simStable amount for mint or redeem
 
 contract SimStable is ERC20, AccessControl {
@@ -409,6 +408,19 @@ contract SimStable is ERC20, AccessControl {
 
         emit CollateralRatioAdjusted(oldCollateralRatio, collateralRatio, simStablePricePair);
     }
+
+
+    /**
+     * @dev Overrides the ERC20 _update function to include collateral ratio adjustments.
+     * @param from The address tokens are transferred from.
+     * @param to The address tokens are transferred to.
+     * @param value The amount of tokens transferred.
+     */
+    function _update(address from, address to, uint256 value) internal virtual override {
+        super._update(from, to, value);
+        adjustCollateralRatio();
+    }
+
 
 
 
