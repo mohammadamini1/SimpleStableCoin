@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import "./BaseTest.t.sol";
+
+
+contract SimGovTest is BaseTest {
+    /**
+     * @notice Tests the initial setup of the SimGov contract, ensuring that all constructor parameters
+     *         and initial state variables are correctly set.
+     */
+    function test_initialVariables() public view {
+        assertEq(simGov.totalSupply(), 0, "Incorrect initial balance");
+
+        bytes32 DEFAULT_ADMIN_ROLE_SIMGOV = simGov.DEFAULT_ADMIN_ROLE();
+        assertTrue(simGov.hasRole(DEFAULT_ADMIN_ROLE_SIMGOV, admin), "Admin does not have DEFAULT_ADMIN_ROLE");
+        bytes32 MINTER_ROLE = keccak256("MINTER_ROLE");
+        assertTrue(simGov.hasRole(MINTER_ROLE, address(simStable)), "SimStable does not have MINTER_ROLE");
+    }
+    
+}

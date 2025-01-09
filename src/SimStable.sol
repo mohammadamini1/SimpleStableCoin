@@ -23,7 +23,7 @@ contract SimStable is ERC20, AccessControl {
     bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
 
     // SimGov token address
-    ISimGov simGov;
+    ISimGov public simGov;
 
     // Vault contract
     IVault public vault;
@@ -91,8 +91,8 @@ contract SimStable is ERC20, AccessControl {
 
     // Constants
     uint256 private constant SCALING_FACTOR = 1e6;
-    address private immutable UNISWAP_FACTORY;
-    address private immutable WETH_ADDRESS;
+    address public immutable UNISWAP_FACTORY;
+    address public immutable WETH_ADDRESS;
     uint256 private constant WAD = 1e18;
     // Price Peg (scaled by 1e18, e.g., 1e18 represents 1 USD)
     uint256 constant public pricePeg = 1e18;
@@ -608,7 +608,7 @@ contract SimStable is ERC20, AccessControl {
      * @param initialWETHAmount Initial amount of WETH to provide as liquidity.
      * @param initialSimStableAmount Initial amount of SimStable to provide as liquidity.
      *
-    */
+     */
     function createUniswapV2SimStablePool(address uniswapRouter, uint256 initialWETHAmount, uint256 initialSimStableAmount) external onlyRole(ADMIN_ROLE) {
         IUniswapV2Factory factory = IUniswapV2Factory(UNISWAP_FACTORY);
 

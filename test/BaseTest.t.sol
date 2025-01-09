@@ -1,24 +1,19 @@
-// contracts/test/BaseTest.t.sol
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-// Import Foundry's Test base contract
 import "forge-std/Test.sol";
 
-// Import the contracts
 import "../src/SimStable.sol";
 import "../src/SimGov.sol";
 import "../src/Vault.sol";
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 interface IWETH {
     function deposit() external payable;
-
     function transfer(address to, uint value) external returns (bool);
-
     function withdraw(uint) external;
-
     function approve(address spender, uint value) external returns (bool);
-
     function balanceOf(address user) external returns (uint256);
 }
 
@@ -30,38 +25,35 @@ contract BaseTest is Test {
     uint256 mainnetFork;
     string MAINNET_RPC_URL = vm.envString("MAINNET_RPC_URL");
 
+    // Contracts
     SimStable public simStable;
     SimGov public simGov;
     Vault public vault;
+    IWETH public weth;
 
+    // Roles and addresses
     address public admin = address(0x1);
     address public user = address(0x2);
+    address public dummyUser = address(0x3);
 
+    // Constants
     uint256 public initialAdjustmentCoefficient = 2e5;
-    uint256 public targetCollateralRatio = 900_000;
-    uint256 public reCollateralizeTargetRatio = 600_000;
-    uint256 public minCollateralRatio = 500_000;
-    uint256 public collateralRatioAdjustmentCooldown = 600;
+    uint256 public targetCollateralRatio = 900_000; // 90%
+    uint256 public reCollateralizeTargetRatio = 600_000; // 60%
+    uint256 public minCollateralRatio = 500_000; // 50%
+    uint256 public collateralRatioAdjustmentCooldown = 600; // 10 minutes
 
-    address public constant WETH_ADDRESS =
-        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address public constant DAI_ADDRESS =
-        0x6B175474E89094C44Da98b954EedeAC495271d0F;
-    address public constant UNISWAP_FACTORY =
-        0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
-    address public constant UNISWAP_ROUTERV02 =
-        0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+    address public constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address public constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
+    address public constant UNISWAP_FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
+    address public constant UNISWAP_ROUTERV02 = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+    uint256 public constant SCALING_FACTOR = 1e6;
 
-    IWETH weth = IWETH(WETH_ADDRESS);
-
-    /**
-     * @notice Initializes the test environment by deploying and setting up all contracts.
-     */
     function setUp() public virtual {
         mainnetFork = vm.createFork(MAINNET_RPC_URL);
         vm.selectFork(mainnetFork);
+        weth = IWETH(WETH_ADDRESS);
 
-        // Assign roles to admin
         vm.startPrank(admin);
 
         // Deploy SimStable
@@ -81,7 +73,6 @@ contract BaseTest is Test {
 
         // Deploy SimGov
         simGov = new SimGov(address(simStable), "SimGov", "SIMGOV");
-
         // Deploy Vault
         vault = new Vault(address(simStable));
 
@@ -89,54 +80,77 @@ contract BaseTest is Test {
         simStable.setSimGov(address(simGov));
         simStable.setVault(address(vault));
 
-        // mint simGov for user to test
+        // Grant MINTER_ROLE to admin in SimGov for mint test
         simGov.grantRole(keccak256("MINTER_ROLE"), admin);
-        simGov.mint(user, 100_000 ether);
 
         vm.stopPrank();
 
-        // initialize pools
-        // fund simStable some weth
-        vm.deal(address(simStable), 100 ether);
-        vm.startPrank(address(simStable));
-        weth.deposit{value: 10 ether}();
-        vm.stopPrank();
-        // create uniswap pair
-        vm.label(UNISWAP_FACTORY, "UNISWAP_FACTORY");
-        vm.label(UNISWAP_ROUTERV02, "uniswapRouterV02");
-        vm.startPrank(address(admin));
-        uint bprice = 3288649126514320807950;
-        simStable.createUniswapV2SimStablePool(
-            UNISWAP_ROUTERV02,
-            1 * 10 ** 18,
-            // 3347 * 10**18
-            // 6600 * 10**18
-            // 1800 * 10**18
-            // bprice / 2
-            2988649126514320807950
-        );
-        simStable.createUniswapV2SimGovPool(
-            UNISWAP_ROUTERV02,
-            1 * 10 ** 18,
-            // 33470 * 10**18
-            bprice * 1
-        );
-        vm.stopPrank();
 
-        // mint weth to user
-        vm.deal(user, 100 ether);
+        // Fund user with WETH
+        vm.deal(user, 1_000 ether); // Assign 1000 ETH to user
         vm.startPrank(user);
         weth.approve(address(vault), type(uint256).max);
-        weth.deposit{value: 100 ether}();
+        weth.deposit{value: 100 ether}(); // Convert ETH to WETH
+        vm.stopPrank();
+        // Fund simStable with WETH
+        vm.deal(address(simStable), 1_000 ether);
+        vm.startPrank(address(simStable));
+        weth.deposit{value: 10 ether}();  // Convert ETH to WETH
         vm.stopPrank();
 
-        // label addresses
+
+        // Label addresses for easier debugging
         vm.label(admin, "Admin");
         vm.label(user, "User");
-        vm.label(address(simStable), "simStable");
-        vm.label(address(simGov), "simGov");
-        vm.label(address(vault), "vault");
+        vm.label(dummyUser, "dummyUser");
+        vm.label(address(simStable), "SimStable");
+        vm.label(address(simGov), "SimGov");
+        vm.label(address(vault), "Vault");
         vm.label(WETH_ADDRESS, "WETH");
-        vm.label(UNISWAP_FACTORY, "UNISWAP_FACTORY");
+        vm.label(DAI_ADDRESS, "DAI");
+        vm.label(UNISWAP_FACTORY, "UniswapFactory");
+        vm.label(UNISWAP_ROUTERV02, "UniswapRouterV02");
+
     }
+
+    /**
+     * @notice Sets up initial liquidity pools on Uniswap V2 for SimStable and SimGov.
+     */
+    function _setupLiquidityPools(uint256 simStableWETH, uint256 simStableSIM, uint256 simGovWETH, uint256 simGovSIMGOV) internal {
+        vm.startPrank(admin);
+
+        // Approve WETH to be spent by SimStable and SimGov
+        weth.approve(address(simStable), type(uint256).max);
+        weth.approve(address(simGov), type(uint256).max);
+
+        // Mint SimStable and SimGov tokens to admin for liquidity
+        simGov.mint(admin, simGovSIMGOV);
+
+        // Approve Uniswap Router to spend tokens
+        simStable.approve(UNISWAP_ROUTERV02, simStableSIM);
+        simGov.approve(UNISWAP_ROUTERV02, simGovSIMGOV);
+
+        // Setup SimStable/WETH pool
+        simStable.createUniswapV2SimStablePool(
+            UNISWAP_ROUTERV02,
+            simStableWETH,
+            simStableSIM
+        );
+        // Setup SimGov/WETH pool
+        simStable.createUniswapV2SimGovPool(
+            UNISWAP_ROUTERV02,
+            simGovWETH,
+            simGovSIMGOV
+        );
+
+        vm.stopPrank();
+    }
+
+
+    function setupLiquidityPoolsDefault() internal {
+        uint256 weth_price = simStable.getTokenPriceSpot(WETH_ADDRESS, DAI_ADDRESS);
+        _setupLiquidityPools(1 ether, weth_price, 1 ether, weth_price);
+    }
+
+
 }
