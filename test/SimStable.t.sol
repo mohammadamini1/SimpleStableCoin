@@ -64,7 +64,7 @@ contract SimStableTest is BaseTest {
         simStable.addLiquidity(UNISWAP_ROUTERV02, WETH_ADDRESS, address(simStable), 1 ether, 3000 ether, address(0));
         simGov.mint(address(simStable), 30000 ether);
         simStable.addLiquidity(UNISWAP_ROUTERV02, WETH_ADDRESS, address(simGov), 1 ether, 30000 ether, address(0));
-        vm.stopPrank();        
+        vm.stopPrank();
     }
 
 
@@ -123,7 +123,20 @@ contract SimStableTest is BaseTest {
     }
 
 
-    
+    function test_adjustCollateralRatio() public {
+        vm.warp(block.timestamp + 701);
+        // simStable.setCollateralRatio(500_000);
+        vm.startPrank(admin);
+        simStable.setCollateralRatio(1_000_000);
+        vm.stopPrank();
+
+        simStable.adjustCollateralRatio();
+        // vm.warp(block.timestamp + 599);
+        simStable.adjustCollateralRatio();
+
+
+    }
+
 
 
 }

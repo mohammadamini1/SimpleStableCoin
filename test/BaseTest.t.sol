@@ -37,9 +37,11 @@ contract BaseTest is Test {
     address public admin = address(0x1);
     address public user = address(0x2);
 
-    uint256 public initialAdjustmentCoefficient = 1;
+    uint256 public initialAdjustmentCoefficient = 2e5;
     uint256 public targetCollateralRatio = 900_000;
-    uint256 public reCollateralizeTargetRatio = 500_000;
+    uint256 public reCollateralizeTargetRatio = 600_000;
+    uint256 public minCollateralRatio = 500_000;
+    uint256 public collateralRatioAdjustmentCooldown = 600;
 
     address public constant WETH_ADDRESS =
         0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
@@ -71,6 +73,8 @@ contract BaseTest is Test {
             initialAdjustmentCoefficient,
             targetCollateralRatio,
             reCollateralizeTargetRatio,
+            minCollateralRatio,
+            collateralRatioAdjustmentCooldown,
             UNISWAP_FACTORY,
             WETH_ADDRESS
         );

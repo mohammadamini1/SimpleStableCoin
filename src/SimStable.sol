@@ -39,10 +39,13 @@ contract SimStable is ERC20, AccessControl {
     uint256 public minCollateralRatio;
     uint256 public maxCollateralRatio;
 
-    // Price Peg (scaled by 1e18, e.g., 1e18 represents 1 USD)
-    uint256 constant public pricePeg = 1e18;
+    // Cooldown duration in seconds (e.g., 1 hour = 3600 seconds)
+    uint256 public collateralRatioAdjustmentCooldown;
 
-    // Price adjustment coefficient (k, scaled by 1e6)
+    // Timestamp of the last collateral ratio adjustment
+    uint256 public lastCollateralRatioAdjustment;
+
+    // Price adjustment coefficient (k)
     uint256 public adjustmentCoefficient;
 
     // Uniswap V2 Pair Addresses for Collateral Tokens
@@ -73,7 +76,7 @@ contract SimStable is ERC20, AccessControl {
     // event Buyback(address indexed user, uint256 simGovAmount, uint256 collateralUsed);
     event BuybackExecuted(address indexed user, uint256 simGovAmountBurned, uint256 collateralAmountWithdrawn, uint256 collateralPrice, uint256 simGovPrice, uint256 surplusCollateralValue, uint256 currentCollateralRatio, uint256 targetCollateralRatio);
     event ReCollateralized(address indexed user, uint256 collateralAdded, uint256 simGovMinted);
-    event CollateralRatioAdjusted(uint256 newCollateralRatio, uint256 simStablePricePair);
+    event CollateralRatioAdjusted(uint256 oldCollateralRatio, uint256 newCollateralRatio, uint256 simStablePricePair);
     event VaultUpdated(address newVault);
     event SimGovUpdated(address simGov);
     event CollateralTokenUpdated(address newCollateralToken);
@@ -85,12 +88,15 @@ contract SimStable is ERC20, AccessControl {
     event PairCreated(address indexed tokenA, address indexed tokenB, address pair);
     event MinCollateralRatioUpdated(uint256 oldMinCollateralRatio, uint256 newMinCollateralRatio);
     event MaxCollateralRatioUpdated(uint256 oldMaxCollateralRatio, uint256 newMaxCollateralRatio);
+    event CollateralRatioAdjustmentCooldownUpdated(uint256 newCooldown);
 
     // Constants
     uint256 private constant SCALING_FACTOR = 1e6;
     address private immutable UNISWAP_FACTORY;
     address private immutable WETH_ADDRESS;
     uint256 private constant WAD = 1e18;
+    // Price Peg (scaled by 1e18, e.g., 1e18 represents 1 USD)
+    uint256 constant public pricePeg = 1e18;
 
 
 
@@ -105,6 +111,7 @@ contract SimStable is ERC20, AccessControl {
         uint256 _targetCollateralRatio,
         uint256 _reCollateralizeTargetRatio,
         uint256 _minCollateralRatio,
+        uint256 _collateralRatioAdjustmentCooldown,
         address _uniswapFactoryAddress,
         address _wethAddress
     ) ERC20(_name, _symbol) {
@@ -125,6 +132,9 @@ contract SimStable is ERC20, AccessControl {
         reCollateralizeTargetRatio = _reCollateralizeTargetRatio;
         minCollateralRatio = _minCollateralRatio;
         maxCollateralRatio = SCALING_FACTOR;
+
+        collateralRatioAdjustmentCooldown = _collateralRatioAdjustmentCooldown;
+        lastCollateralRatioAdjustment = block.timestamp;
 
         UNISWAP_FACTORY = _uniswapFactoryAddress;
         WETH_ADDRESS = _wethAddress;
@@ -364,6 +374,13 @@ contract SimStable is ERC20, AccessControl {
      * @notice Adjusts the collateral ratio based on the deviation of SimStable's price from the peg.
      */
     function adjustCollateralRatio() public {
+        // Check if the cooldown period has passed
+        if (block.timestamp < lastCollateralRatioAdjustment + collateralRatioAdjustmentCooldown) {
+            return;
+        }
+        // Update the last adjustment timestamp
+        lastCollateralRatioAdjustment = block.timestamp;
+
         // Fetch current price of SimStable in WETH
         uint256 collateralPrice = getTokenPrice(collateralToken, collateralTokenPair);
         uint256 simStablePrice = getSimStablePrice();
@@ -373,12 +390,11 @@ contract SimStable is ERC20, AccessControl {
         // Assuming pricePeg is in WETH terms
         int256 deviation = int256(pricePeg) - int256(simStablePricePair);
 
-        // Calculate adjustment: k * deviation / SCALING_FACTOR
-        // adjustmentCoefficient is scaled by 1e6
-        int256 adjustment = (int256(adjustmentCoefficient) * deviation) / int256(SCALING_FACTOR);
+        // Calculate adjustment: k * deviation
+        int256 adjustment = int256(adjustmentCoefficient) * deviation;
 
         // Calculate new collateral ratio
-        int256 newCollateralRatio = int256(collateralRatio) + adjustment;
+        int256 newCollateralRatio = int256(collateralRatio) + (adjustment / int256(WAD));
 
         // Ensure the new collateral ratio stays within the defined boundaries
         if (newCollateralRatio < int256(minCollateralRatio)) {
@@ -388,9 +404,10 @@ contract SimStable is ERC20, AccessControl {
         }
 
         // Update the collateral ratio
+        uint256 oldCollateralRatio = collateralRatio;
         collateralRatio = uint256(newCollateralRatio);
 
-        emit CollateralRatioAdjusted(collateralRatio, simStablePricePair);
+        emit CollateralRatioAdjusted(oldCollateralRatio, collateralRatio, simStablePricePair);
     }
 
 
@@ -562,6 +579,15 @@ contract SimStable is ERC20, AccessControl {
         }
         maxCollateralRatio = _maxCollateralRatio;
         emit MaxCollateralRatioUpdated(maxCollateralRatio, _maxCollateralRatio);
+    }
+
+    /**
+     * @notice Sets a new cooldown duration for collateral ratio adjustments.
+     * @param _newCooldown The new cooldown duration in seconds.
+     */
+    function setCollateralRatioAdjustmentCooldown(uint256 _newCooldown) external onlyRole(ADMIN_ROLE) {
+        collateralRatioAdjustmentCooldown = _newCooldown;
+        emit CollateralRatioAdjustmentCooldownUpdated(_newCooldown);
     }
 
     /**
