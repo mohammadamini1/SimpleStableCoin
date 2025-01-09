@@ -88,7 +88,7 @@ contract SimStableTest is BaseTest {
         simStable.mint(collateralAmount, minSimStableAmount);
         vm.stopPrank();
 
-        // assetions
+        // Assertions
         assertEq(simStable.collateralRatio(), 500_000);
 
         // Check SimStable balance
@@ -103,6 +103,59 @@ contract SimStableTest is BaseTest {
     }
 
 
+    /**
+     * @notice Tests the redeeming process of SimStable.
+     */
+    function testRedeemSimStable_100collateral() public {
+        setupLiquidityPoolsDefault();
+        uint256 weth_price = simStable.getTokenPriceSpot(WETH_ADDRESS, DAI_ADDRESS);
+
+        uint256 collateralAmount = 10 ether;
+        uint256 minSimStableAmount = 10 * weth_price;
+
+        // Mint
+        vm.startPrank(user);
+        simStable.mint(collateralAmount, minSimStableAmount);
+        uint256 simStableBalance = simStable.balanceOf(user);
+        assertEq(simStableBalance, minSimStableAmount);
+
+        // Redeem
+        simStable.redeem(simStableBalance, collateralAmount, 0);
+        simStableBalance = simStable.balanceOf(user);
+        assertEq(simStableBalance, 0);
+        uint256 simStableGov = simGov.balanceOf(user);
+        assertEq(simStableGov, 0);
+        vm.stopPrank();
+    }
+
+    function testRedeemSimStable_50collateral() public {
+        setupLiquidityPoolsDefault();
+        uint256 weth_price = simStable.getTokenPriceSpot(WETH_ADDRESS, DAI_ADDRESS);
+        setCollateralRatio(500_000);
+
+        uint256 collateralAmount = 10 ether;
+        uint256 simGovAmount = 10 * weth_price;
+        mintSimGov(user, simGovAmount);
+        uint256 minSimStableAmount = 20 * weth_price;
+        uint256 wethBalance = weth.balanceOf(user);
+
+        // Mint
+        vm.startPrank(user);
+        simStable.mint(collateralAmount, minSimStableAmount);
+        uint256 simStableBalance = simStable.balanceOf(user);
+        assertEq(simStableBalance, minSimStableAmount);
+        uint256 simGovBalance = simGov.balanceOf(user);
+        assertEq(simGovBalance, 0);
+
+        // Redeem
+        simStable.redeem(simStableBalance, collateralAmount, simGovAmount);
+        simStableBalance = simStable.balanceOf(user);
+        assertEq(simStableBalance, 0);
+        uint256 simStableGov = simGov.balanceOf(user);
+        assertEq(simStableGov, simGovAmount);
+        assertEq(wethBalance, weth.balanceOf(user));
+        vm.stopPrank();
+    }
 
 
 
