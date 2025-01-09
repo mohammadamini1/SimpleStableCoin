@@ -5,6 +5,9 @@ import "./BaseTest.t.sol";
 
 
 contract SimStableTest is BaseTest {
+    error InsufficientCollateral(uint256 required, uint256 surplus);
+
+
     /**
      * @notice Tests the initial setup of the SimStable contract, ensuring that all constructor parameters
      *         and initial state variables are correctly set.
@@ -158,6 +161,39 @@ contract SimStableTest is BaseTest {
     }
 
 
+    /**
+     * @notice Tests buying back SimGov when collateral ratio exceeds target.
+     */
+    function testBuybackSimGov() public {
+        setupLiquidityPoolsDefault();
+        uint256 weth_price = simStable.getTokenPriceSpot(WETH_ADDRESS, DAI_ADDRESS);
+
+        uint256 collateralAmount = 99 ether;
+        uint256 minSimStableAmount = 99 * weth_price;
+        uint256 simGovAmount = 9 * weth_price; // 10%
+        mintSimGov(user, simGovAmount);
+        uint256 wethBalance = weth.balanceOf(user);
+
+        // Mint
+        vm.startPrank(user);
+        simStable.mint(collateralAmount, minSimStableAmount);
+        vm.stopPrank();
+
+        setCollateralRatio(900_000);
+
+        // Buyback
+        vm.startPrank(user);
+        simStable.buyback(simGovAmount);
+        vm.stopPrank();
+        assertEq(simGov.balanceOf(user), 0);
+        assertEq(weth.balanceOf(user), wethBalance - 99 ether + 9 ether);
+
+        // Expect the revert with InsufficientCollateral error
+        vm.startPrank(user);
+        vm.expectPartialRevert(SimStable.InsufficientCollateral.selector);
+        simStable.buyback(simGovAmount);
+        vm.stopPrank();
+    }
 
 
 

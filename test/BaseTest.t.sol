@@ -95,7 +95,7 @@ contract BaseTest is Test {
         // Fund simStable with WETH
         vm.deal(address(simStable), 1_000 ether);
         vm.startPrank(address(simStable));
-        weth.deposit{value: 10 ether}();  // Convert ETH to WETH
+        weth.deposit{value: 100 ether}();  // Convert ETH to WETH
         vm.stopPrank();
 
 
