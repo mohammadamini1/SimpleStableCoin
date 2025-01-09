@@ -153,4 +153,22 @@ contract BaseTest is Test {
     }
 
 
+    modifier prankAdmin() {
+        vm.startPrank(admin);
+        _;
+        vm.stopPrank();
+    }
+
+    function setCollateralRatio(uint256 _newCollateralRatio) internal prankAdmin {
+        simStable.setCollateralRatio(_newCollateralRatio);
+    }
+
+    function mintSimGov(address to, uint256 amount) internal prankAdmin {
+        simGov.mint(to, amount);
+    }
+
+
+
+
+
 }

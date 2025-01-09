@@ -10,12 +10,16 @@ contract SimGovTest is BaseTest {
      *         and initial state variables are correctly set.
      */
     function test_initialVariables() public view {
+        assertEq(simGov.name(), "SimGov", "Incorrect token name");
+        assertEq(simGov.symbol(), "SIMGOV", "Incorrect token symbol");
         assertEq(simGov.totalSupply(), 0, "Incorrect initial balance");
 
         bytes32 DEFAULT_ADMIN_ROLE_SIMGOV = simGov.DEFAULT_ADMIN_ROLE();
         assertTrue(simGov.hasRole(DEFAULT_ADMIN_ROLE_SIMGOV, admin), "Admin does not have DEFAULT_ADMIN_ROLE");
         bytes32 MINTER_ROLE = keccak256("MINTER_ROLE");
         assertTrue(simGov.hasRole(MINTER_ROLE, address(simStable)), "SimStable does not have MINTER_ROLE");
+
+        assertEq(vault.getCollateralBalance(WETH_ADDRESS), 0);
     }
     
 }

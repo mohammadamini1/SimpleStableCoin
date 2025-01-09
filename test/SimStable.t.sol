@@ -16,7 +16,7 @@ contract SimStableTest is BaseTest {
 
         assertEq(address(simStable.simGov()), address(simGov), "SimGov address not set correctly");
         assertEq(address(simStable.vault()), address(vault), "Vault address not set correctly");
-        
+
         assertEq(simStable.collateralRatio(), SCALING_FACTOR, "Initial collateral ratio should be SCALING_FACTOR");
         assertEq(simStable.targetCollateralRatio(), targetCollateralRatio, "Incorrect target collateral ratio");
         assertEq(simStable.reCollateralizeTargetRatio(), reCollateralizeTargetRatio, "Incorrect re-collateralize target ratio");
@@ -38,6 +38,68 @@ contract SimStableTest is BaseTest {
         bytes32 ADMIN_ROLE = keccak256("ADMIN_ROLE");
         assertTrue(simStable.hasRole(ADMIN_ROLE, admin), "Admin does not have ADMIN_ROLE");
 
+    }
+
+
+    /**
+     * @notice Tests the minting process of SimStable.
+     */
+    function test_mintSimStable_100collateral() public {
+        setupLiquidityPoolsDefault();
+        uint256 weth_price = simStable.getTokenPriceSpot(WETH_ADDRESS, DAI_ADDRESS);
+
+        uint256 collateralAmount = 10 ether;
+        uint256 userSimStableBalanceBefore = simStable.balanceOf(user);
+        uint256 userSimGovBalanceBefore = simGov.balanceOf(user);
+        uint256 minSimStableAmount = 10 * weth_price;
+
+        // User minting SimStable
+        vm.startPrank(user);
+        simStable.mint(collateralAmount, minSimStableAmount);
+        vm.stopPrank();
+
+        // assetions
+        assertEq(simStable.collateralRatio(), SCALING_FACTOR);
+
+        // Check SimStable balance
+        uint256 simStableBalance = simStable.balanceOf(user);
+        assertEq(userSimStableBalanceBefore, 0);
+        assertEq(simStableBalance, minSimStableAmount);
+
+        // Check SimGov balance after burning
+        uint256 userSimGovBalanceAfter = simGov.balanceOf(user);
+        assertEq(userSimGovBalanceBefore, 0);
+        assertEq(userSimGovBalanceAfter, 0);
+    }
+
+    function test_mintSimStable_50collateral() public {
+        setupLiquidityPoolsDefault();
+        uint256 weth_price = simStable.getTokenPriceSpot(WETH_ADDRESS, DAI_ADDRESS);
+        setCollateralRatio(500_000);
+
+        uint256 collateralAmount = 10 ether;
+        mintSimGov(user, 10 * weth_price);
+        uint256 userSimStableBalanceBefore = simStable.balanceOf(user);
+        uint256 userSimGovBalanceBefore = simGov.balanceOf(user);
+        uint256 minSimStableAmount = 20 * weth_price;
+
+        // User minting SimStable
+        vm.startPrank(user);
+        simStable.mint(collateralAmount, minSimStableAmount);
+        vm.stopPrank();
+
+        // assetions
+        assertEq(simStable.collateralRatio(), 500_000);
+
+        // Check SimStable balance
+        uint256 simStableBalance = simStable.balanceOf(user);
+        assertEq(userSimStableBalanceBefore, 0);
+        assertEq(simStableBalance, minSimStableAmount);
+
+        // Check SimGov balance after burning
+        uint256 userSimGovBalanceAfter = simGov.balanceOf(user);
+        assertEq(userSimGovBalanceBefore, 10 * weth_price);
+        assertEq(userSimGovBalanceAfter, 0);
     }
 
 
