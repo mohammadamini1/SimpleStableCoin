@@ -12,7 +12,7 @@ contract SimStableTest is BaseTest {
 
     function test_mint() public {
         vm.startPrank(user);
-        simStable.mint(1 ether, 0);
+        simStable.mint(1 ether, 3200 ether);
         vm.stopPrank();
 
         // assertGt(simStable.balanceOf(user), 3500 * 10 ** 18);

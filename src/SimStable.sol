@@ -34,6 +34,7 @@ contract SimStable is ERC20, AccessControl {
 
     // Target Collateral Ratio (scaled by 1e6)
     uint256 public targetCollateralRatio;
+    uint256 public reCollateralizeTargetRatio;
 
     // Price adjustment coefficient (k, scaled by 1e6)
     uint256 public adjustmentCoefficient;
@@ -52,7 +53,9 @@ contract SimStable is ERC20, AccessControl {
     error PairAlreadyExists();
     error SlippageExceeded(uint256 expected, uint256 actual);
     error TargetCollateralRatioTooHigh();
+    error ReCollateralizeTargetRatioTooHigh();
     error CollateralRatioNotExceedingTarget();
+    error CollateralRatioNotDroppingingTarget();
     error InsufficientSurplusCollateral(uint256 required, uint256 surplus);
     error InsufficientCollateral();
 
@@ -91,6 +94,7 @@ contract SimStable is ERC20, AccessControl {
         address _collateralTokenPair,
         uint256 _adjustmentCoeff,
         uint256 _targetCollateralRatio,
+        uint256 _reCollateralizeTargetRatio,
         address _uniswapFactoryAddress,
         address _wethAddress
     ) ERC20(_name, _symbol) {
@@ -105,6 +109,10 @@ contract SimStable is ERC20, AccessControl {
             revert TargetCollateralRatioTooHigh();
         }
         targetCollateralRatio = _targetCollateralRatio;
+        if (_reCollateralizeTargetRatio > collateralRatio) {
+            revert ReCollateralizeTargetRatioTooHigh();
+        }
+        reCollateralizeTargetRatio = _reCollateralizeTargetRatio;
 
         UNISWAP_FACTORY = _uniswapFactoryAddress;
         WETH_ADDRESS = _wethAddress;
@@ -251,7 +259,7 @@ contract SimStable is ERC20, AccessControl {
             revert InvalidSimGovAmount();
         }
         // Ensure the current collateral ratio exceeds the target collateral ratio before allowing a buyback.
-        if (collateralRatio >= targetCollateralRatio) {
+        if (collateralRatio < targetCollateralRatio) {
             revert CollateralRatioNotExceedingTarget();
         }
 
@@ -300,7 +308,43 @@ contract SimStable is ERC20, AccessControl {
     }
 
 
-    function reCollateralize(uint256 collateralAdded) external {
+    /**
+     * @notice Re-collateralizes the system by adding more collateral in exchange for SimGov tokens.
+     * @param _collateralAmount The amount of collateral to add.
+     * @param _minSimGovAmount The minimum amount of SimGov tokens to receive. Reverts if slippage exceeds this amount.
+     */
+    function reCollateralize(uint256 _collateralAmount, uint256 _minSimGovAmount) external {
+        // Ensure the collateral amount is greater than zero
+        if (_collateralAmount == 0) {
+            revert InvalidCollateralAmount();
+        }
+        // Ensure the collateral ratio is below the target
+        if (collateralRatio > reCollateralizeTargetRatio) {
+            revert CollateralRatioNotDroppingingTarget();
+        }
+
+        // Fetch current prices
+        uint256 collateralPrice = getTokenPrice(collateralToken, collateralTokenPair);
+        uint256 simGovPrice = getSimGovPrice();
+        uint256 simGovPricePair = (collateralPrice * WAD) / simGovPrice;
+
+        // Calculate the value of the collateral added
+        uint256 collateralValue = (_collateralAmount * collateralPrice) / WAD;
+
+        // Calculate the amount of SimGov to mint
+        uint256 simGovAmount = (collateralValue * WAD) / simGovPricePair;
+
+        // Check for slippage
+        _checkSlippage(simGovAmount, _minSimGovAmount);
+
+        // Transfer collateral from user to Vault
+        vault.depositCollateral(collateralToken, _msgSender(), _collateralAmount);
+
+        // Mint SimGov tokens to user
+        simGov.mint(_msgSender(), simGovAmount);
+
+        // Emit ReCollateralized event
+        emit ReCollateralized(_msgSender(), _collateralAmount, simGovAmount);
     }
 
 
@@ -308,7 +352,7 @@ contract SimStable is ERC20, AccessControl {
 
 
 
-    /* ---------- VIEW ---------- */
+    /* ---------- VIEW AND PURE ---------- */
 
     /**
      * @notice Retrieves the current price of a token from its Uniswap V2 pair.

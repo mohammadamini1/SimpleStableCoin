@@ -10,17 +10,17 @@ import "../src/SimStable.sol";
 import "../src/SimGov.sol";
 import "../src/Vault.sol";
 
-
-
-
 interface IWETH {
     function deposit() external payable;
+
     function transfer(address to, uint value) external returns (bool);
+
     function withdraw(uint) external;
+
     function approve(address spender, uint value) external returns (bool);
+
     function balanceOf(address user) external returns (uint256);
 }
-
 
 /**
  * @title BaseTest
@@ -38,15 +38,19 @@ contract BaseTest is Test {
     address public user = address(0x2);
 
     uint256 public initialAdjustmentCoefficient = 1;
-    uint256 public targetCollateralRatio = 800_000;
+    uint256 public targetCollateralRatio = 900_000;
+    uint256 public reCollateralizeTargetRatio = 500_000;
 
-    address public constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address public constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-    address public constant UNISWAP_FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
-    address public constant UNISWAP_ROUTERV02 = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+    address public constant WETH_ADDRESS =
+        0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address public constant DAI_ADDRESS =
+        0x6B175474E89094C44Da98b954EedeAC495271d0F;
+    address public constant UNISWAP_FACTORY =
+        0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
+    address public constant UNISWAP_ROUTERV02 =
+        0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
 
     IWETH weth = IWETH(WETH_ADDRESS);
-
 
     /**
      * @notice Initializes the test environment by deploying and setting up all contracts.
@@ -59,7 +63,17 @@ contract BaseTest is Test {
         vm.startPrank(admin);
 
         // Deploy SimStable
-        simStable = new SimStable("SimStable", "SIM", WETH_ADDRESS, DAI_ADDRESS, initialAdjustmentCoefficient, targetCollateralRatio, UNISWAP_FACTORY, WETH_ADDRESS);
+        simStable = new SimStable(
+            "SimStable",
+            "SIM",
+            WETH_ADDRESS,
+            DAI_ADDRESS,
+            initialAdjustmentCoefficient,
+            targetCollateralRatio,
+            reCollateralizeTargetRatio,
+            UNISWAP_FACTORY,
+            WETH_ADDRESS
+        );
 
         // Deploy SimGov
         simGov = new SimGov(address(simStable), "SimGov", "SIMGOV");
@@ -77,7 +91,6 @@ contract BaseTest is Test {
 
         vm.stopPrank();
 
-
         // initialize pools
         // fund simStable some weth
         vm.deal(address(simStable), 100 ether);
@@ -91,7 +104,7 @@ contract BaseTest is Test {
         uint bprice = 3288649126514320807950;
         simStable.createUniswapV2SimStablePool(
             UNISWAP_ROUTERV02,
-            1 * 10**18,
+            1 * 10 ** 18,
             // 3347 * 10**18
             // 6600 * 10**18
             // 1800 * 10**18
@@ -99,12 +112,11 @@ contract BaseTest is Test {
         );
         simStable.createUniswapV2SimGovPool(
             UNISWAP_ROUTERV02,
-            1 * 10**18,
+            1 * 10 ** 18,
             // 33470 * 10**18
             bprice * 1
         );
         vm.stopPrank();
-
 
         // mint weth to user
         vm.deal(user, 100 ether);
@@ -112,7 +124,6 @@ contract BaseTest is Test {
         weth.approve(address(vault), type(uint256).max);
         weth.deposit{value: 100 ether}();
         vm.stopPrank();
-
 
         // label addresses
         vm.label(admin, "Admin");
@@ -122,13 +133,5 @@ contract BaseTest is Test {
         vm.label(address(vault), "vault");
         vm.label(WETH_ADDRESS, "WETH");
         vm.label(UNISWAP_FACTORY, "UNISWAP_FACTORY");
-
-
     }
-
-
-
-
-
-
 }
