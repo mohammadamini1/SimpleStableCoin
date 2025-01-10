@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import "./BaseTest.t.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 
 contract SimStableTest is BaseTest {
@@ -266,7 +267,7 @@ contract SimStableTest is BaseTest {
         vm.warp(block.timestamp + 600);
         simStable.adjustCollateralRatio();
 
-        // expect cr decrease because price is higher 
+        // expect cr decrease because price is higher
         assertLt(simStable.collateralRatio(), 950_000);
 
         vm.stopPrank();
@@ -316,12 +317,128 @@ contract SimStableTest is BaseTest {
         vm.warp(block.timestamp + 600);
         simStable.adjustCollateralRatio();
 
-        // expect cr decrease because price is higher 
+        // expect cr decrease because price is higher
         assertGt(simStable.collateralRatio(), 950_000);
 
         vm.stopPrank();
 
     }
+
+
+
+    /**
+     * @notice Tests minting with insufficient SimGov tokens (should revert).
+     */
+    function testMintInsufficientSimGov() public {
+        setupLiquidityPoolsDefault();
+        setCollateralRatio(950_000); // 95%
+
+        vm.startPrank(user);
+        vm.expectPartialRevert(bytes4(keccak256("ERC20InsufficientBalance(address,uint256,uint256)")));
+        simStable.mint(1 ether, 0);
+        vm.stopPrank();
+    }
+
+    /**
+     * @notice Tests slippage protection during minting.
+     */
+    function testMintSlippageProtection() public {
+        setupLiquidityPoolsDefault();
+
+        // Attempt to mint with high minSimStableAmount (should revert)
+        vm.startPrank(user);
+        vm.expectPartialRevert(SimStable.SlippageExceeded.selector);
+        simStable.mint(1 ether, 1e50);
+        vm.stopPrank();
+    }
+
+
+    /**
+     * @notice Tests redeeming more SimStable than user holds (should revert).
+     */
+    function testRedeemExcessSimStable() public {
+        setupLiquidityPoolsDefault();
+
+        // Attempt to redeem
+        vm.startPrank(user);
+        vm.expectPartialRevert(bytes4(keccak256("ERC20InsufficientBalance(address,uint256,uint256)")));
+        simStable.redeem(200_000 ether, 0, 0);
+        vm.stopPrank();
+    }
+
+
+    /**
+     * @notice Tests the adjustCollateralRatio function cooldown.
+     */
+    function testCollateralRatioAdjustmentCooldown() public {
+        setupLiquidityPoolsDefault();
+        address[] memory path = new address[](2);
+        path[0] = WETH_ADDRESS;
+        path[1] = address(simStable);
+        uint256 cr = simStable.collateralRatio();
+
+        setCollateralRatio(950_000);
+
+        vm.startPrank(user);
+        weth.approve(UNISWAP_ROUTERV02, type(uint256).max);
+
+        // swap eth for simStable
+        performSwap(
+            UNISWAP_ROUTERV02,
+            path,
+            1e17, // 0.1 weth
+            0,
+            user
+        );
+
+        // move time because uniswap transfer reset adjusment cooldown
+        vm.warp(block.timestamp + 600);
+        cr = simStable.collateralRatio();
+        simStable.adjustCollateralRatio();
+        // expect change
+        assertNotEq(cr, simStable.collateralRatio());
+
+        // swap eth for simStable
+        performSwap(
+            UNISWAP_ROUTERV02,
+            path,
+            1e17, // 0.1 weth
+            0,
+            user
+        );
+
+        cr = simStable.collateralRatio();
+        simStable.adjustCollateralRatio();
+        // do not expect change becasue cooldown
+        assertEq(cr, simStable.collateralRatio());
+
+        // expect change
+        vm.warp(block.timestamp + 600);
+        cr = simStable.collateralRatio();
+        simStable.adjustCollateralRatio();
+        // expect change
+        assertNotEq(cr, simStable.collateralRatio());
+
+        vm.stopPrank();    
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
