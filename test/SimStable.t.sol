@@ -227,6 +227,101 @@ contract SimStableTest is BaseTest {
     }
 
 
+    /**
+     * @notice Tests dynamic collateral ratio adjustments based on SimStable price.
+     */
+    function testAdjustCollateralRatio_crDecrease() public {
+        setupLiquidityPoolsDefault();
+        uint256 weth_price = simStable.getTokenPriceSpot(WETH_ADDRESS, DAI_ADDRESS);
+        address[] memory path = new address[](2);
+        path[0] = WETH_ADDRESS;
+        path[1] = address(simStable);
+
+        setCollateralRatio(950_000);
+        assertEq(simStable.collateralRatio(), 950_000);
+
+        uint256 ssPrice = (weth_price * 1e18) / simStable.getSimStablePrice();
+        assertEq(ssPrice, 1e18);
+
+        vm.startPrank(user);
+        simStable.adjustCollateralRatio();
+        ssPrice = (weth_price * 1e18) / simStable.getSimStablePrice();
+        assertEq(ssPrice, 1e18);
+
+        // swap eth for simStable
+        weth.approve(UNISWAP_ROUTERV02, type(uint256).max);
+        performSwap(
+            UNISWAP_ROUTERV02,
+            path,
+            1e17, // 0.1 weth
+            0,
+            user
+        );
+
+        // simStable price is higher
+        ssPrice = (weth_price * 1e18) / simStable.getSimStablePrice();
+        assertGt(ssPrice, 1e18);
+
+        // adjust
+        vm.warp(block.timestamp + 600);
+        simStable.adjustCollateralRatio();
+
+        // expect cr decrease because price is higher 
+        assertLt(simStable.collateralRatio(), 950_000);
+
+        vm.stopPrank();
+
+    }
+
+    function testAdjustCollateralRatio_crIncrease() public {
+        setupLiquidityPoolsDefault();
+        uint256 weth_price = simStable.getTokenPriceSpot(WETH_ADDRESS, DAI_ADDRESS);
+        address[] memory path = new address[](2);
+        path[0] = address(simStable);
+        path[1] = WETH_ADDRESS;
+
+        uint256 ssPrice = (weth_price * 1e18) / simStable.getSimStablePrice();
+        assertEq(ssPrice, 1e18);
+
+        vm.startPrank(user);
+        simStable.adjustCollateralRatio();
+        ssPrice = (weth_price * 1e18) / simStable.getSimStablePrice();
+        assertEq(ssPrice, 1e18);
+
+        // mint simStable for swap
+        simStable.mint(1e18, 0);
+        vm.stopPrank();
+
+        // set cr to lower than 100% so we can increase it
+        setCollateralRatio(950_000);
+        assertEq(simStable.collateralRatio(), 950_000);
+
+
+        // swap eth for simStable
+        vm.startPrank(user);
+        simStable.approve(UNISWAP_ROUTERV02, type(uint256).max);
+        performSwap(
+            UNISWAP_ROUTERV02,
+            path,
+            300 * 1e18, // 300 $ simStable (10%)
+            0,
+            user
+        );
+
+        // simStable price is lower
+        ssPrice = (weth_price * 1e18) / simStable.getSimStablePrice();
+        assertLt(ssPrice, 1e18);
+
+        // adjust
+        vm.warp(block.timestamp + 600);
+        simStable.adjustCollateralRatio();
+
+        // expect cr decrease because price is higher 
+        assertGt(simStable.collateralRatio(), 950_000);
+
+        vm.stopPrank();
+
+    }
 
 
 
