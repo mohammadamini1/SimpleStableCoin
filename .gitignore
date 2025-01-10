@@ -11,4 +11,4 @@ out/
 docs/
 
 # Dotenv file
-.env ## TODO: uncomment if there is a private key
+.env

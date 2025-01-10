@@ -456,7 +456,7 @@ contract SimStable is ERC20, AccessControl {
      * @return price The price of `tokenA` denominated in `tokenB`, scaled by 1e18.
      */
     // TODO: implement TWAP
-    function getTokenPrice(address tokenA, address tokenB) internal view returns (uint price) {
+    function getTokenPrice(address tokenA, address tokenB) public view returns (uint price) {
         price = getTokenPriceSpot(tokenA, tokenB);
         if (price == 0) {
             revert PriceFetchFailed();
