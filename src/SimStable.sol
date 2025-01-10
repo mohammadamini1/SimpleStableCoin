@@ -557,7 +557,7 @@ contract SimStable is ERC20, AccessControl {
     // for test
     // TODO: decide for removal or not. maybe emergency set
     function setCollateralRatio(uint256 _newCollateralRatio) external onlyRole(ADMIN_ROLE) {
-        if (_newCollateralRatio > SCALING_FACTOR) _newCollateralRatio = _newCollateralRatio;
+        if (_newCollateralRatio > SCALING_FACTOR) _newCollateralRatio = SCALING_FACTOR;
         collateralRatio = _newCollateralRatio;
     }
 

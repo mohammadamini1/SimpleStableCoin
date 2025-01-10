@@ -425,6 +425,113 @@ contract SimStableTest is BaseTest {
 
 
 
+    /**
+     * @notice Tests admin functions for setting parameters.
+     */
+    function testAdminFunctions() public {
+        bytes4 err = bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)"));
+
+        // check for admin access control
+        vm.startPrank(user);
+ 
+        vm.expectPartialRevert(err);
+        simStable.setCollateralRatio(800_000);
+ 
+        vm.expectPartialRevert(err);
+        simStable.setVault(address(0x1111));
+
+        vm.expectPartialRevert(err);
+        simStable.setSimGov(address(0x1111));
+
+        vm.expectPartialRevert(err);
+        simStable.setAdjustmentCoefficient(123);
+
+        vm.expectPartialRevert(err);
+        simStable.setCollateralToken(address(0x1111));
+
+        vm.expectPartialRevert(err);
+        simStable.setCollateralTokenPair(address(0x1111));
+
+        vm.expectPartialRevert(err);
+        simStable.setMinCollateralRatio(123);
+
+        vm.expectPartialRevert(err);
+        simStable.setMaxCollateralRatio(123);
+
+        vm.expectPartialRevert(err);
+        simStable.setMaxCollateralMultiplier(123);
+
+        vm.expectPartialRevert(err);
+        simStable.setCollateralRatioAdjustmentCooldown(123);
+
+        vm.expectPartialRevert(err);
+        simStable.createUniswapV2SimStablePool(address(0x1111), 123, 123);
+
+        vm.expectPartialRevert(err);
+        simStable.createUniswapV2SimGovPool(address(0x1111), 123, 123);
+
+        vm.expectPartialRevert(err);
+        simStable.addLiquidity(address(0x1111), address(0x1111), address(0x1111), 123, 123, address(0x1111));
+
+        vm.stopPrank();
+
+
+
+        // check admin functions other errors
+        vm.startPrank(admin);
+ 
+        vm.expectRevert(SimStable.ZeroAddress.selector);
+        simStable.setVault(address(0x0));
+        simStable.setVault(address(0x1111));
+        assertEq(address(simStable.vault()), address(0x1111));
+
+        vm.expectRevert(SimStable.ZeroAddress.selector);
+        simStable.setSimGov(address(0x0));
+        simStable.setSimGov(address(0x1111));
+        assertEq(address(simStable.simGov()), address(0x1111));
+
+        simStable.setAdjustmentCoefficient(123);
+        assertEq(simStable.adjustmentCoefficient(), 123);
+
+        simStable.setCollateralRatio(800_000);
+        assertEq(simStable.collateralRatio(), 800_000);
+        simStable.setCollateralRatio(1800_000);
+        assertEq(simStable.collateralRatio(), SCALING_FACTOR);
+
+        vm.expectRevert(SimStable.ZeroAddress.selector);
+        simStable.setCollateralToken(address(0x0));
+        simStable.setCollateralToken(address(0x1111));
+        assertEq(simStable.collateralToken(), address(0x1111));
+
+        vm.expectRevert(SimStable.ZeroAddress.selector);
+        simStable.setCollateralTokenPair(address(0x0));
+        simStable.setCollateralTokenPair(address(0x1111));
+        assertEq(simStable.collateralTokenPair(), address(0x1111));
+
+        uint256 maxCollateralRatio = simStable.maxCollateralRatio();
+        vm.expectPartialRevert(SimStable.InvalidMinOrMaxCollateralRatioSet.selector);
+        simStable.setMinCollateralRatio(maxCollateralRatio);
+        simStable.setMinCollateralRatio(maxCollateralRatio - 1);
+        assertEq(simStable.minCollateralRatio(), simStable.maxCollateralRatio() - 1);
+
+        vm.expectPartialRevert(SimStable.InvalidMinOrMaxCollateralRatioSet.selector);
+        simStable.setMaxCollateralRatio(SCALING_FACTOR + 1);
+        uint256 minCollateralRatio = simStable.minCollateralRatio();
+        vm.expectPartialRevert(SimStable.InvalidMinOrMaxCollateralRatioSet.selector);
+        simStable.setMaxCollateralRatio(minCollateralRatio - 1);
+        simStable.setMaxCollateralRatio(minCollateralRatio + 1);
+        assertEq(simStable.maxCollateralRatio(), minCollateralRatio + 1);
+
+        vm.expectRevert(SimStable.InvalidMaxCollateralMultiplier.selector);
+        simStable.setMaxCollateralMultiplier(0);
+        simStable.setMaxCollateralMultiplier(123);
+        assertEq(simStable.maxCollateralMultiplier(), 123);
+
+        simStable.setCollateralRatioAdjustmentCooldown(123);
+        assertEq(simStable.collateralRatioAdjustmentCooldown(), 123);
+
+        vm.stopPrank();
+    }
 
 
 
