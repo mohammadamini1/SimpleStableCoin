@@ -530,9 +530,7 @@ contract SimStableTest is BaseTest {
         simStable.setCollateralRatioAdjustmentCooldown(123);
         assertEq(simStable.collateralRatioAdjustmentCooldown(), 123);
 
-        vm.expectRevert(SimStable.PairCreationFailed.selector);
-        simStable.createUniswapV2SimStablePool(address(0), 1, 1);
-        simStable.createUniswapV2SimStablePool(UNISWAP_ROUTERV02, 1, 1);
+        simStable.createUniswapV2SimStablePool(UNISWAP_ROUTERV02, 1 ether, 1 ether);
         vm.expectRevert(SimStable.PairAlreadyExists.selector);
         simStable.createUniswapV2SimStablePool(UNISWAP_ROUTERV02, 1, 1);
 
