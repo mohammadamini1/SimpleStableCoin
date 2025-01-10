@@ -15,7 +15,7 @@ import "./interface/ISimGov.sol";
 
 
 
-import "forge-std/Test.sol"; // TODO: remove
+// TODO: make contract pausable
 // TODO: add simulation functions to calculate simStable amount for mint or redeem
 
 contract SimStable is ERC20, AccessControl {
@@ -490,7 +490,6 @@ contract SimStable is ERC20, AccessControl {
      * @return price The price of the SimGov token.
      */
     function getSimGovPrice() public view returns (uint256) {
-        // return WAD; // TODO: remove
         return getTokenPrice(WETH_ADDRESS, address(simGov));
     }
 
@@ -501,7 +500,6 @@ contract SimStable is ERC20, AccessControl {
      * @return price The price of the SimGov token.
      */
     function getSimStablePrice() public view returns (uint256) {
-        // return WAD; // TODO: remove
         return getTokenPrice(WETH_ADDRESS, address(this));
     }
 
@@ -658,9 +656,6 @@ contract SimStable is ERC20, AccessControl {
         } else {
             revert PairAlreadyExists();
         }
-
-        // // Mint simStable and approve router
-        // _mint(address(this), initialSimStableAmount);
 
         addLiquidity(uniswapRouter, WETH_ADDRESS, simStableAddr, initialWETHAmount, initialSimStableAmount, pairSimStable);
     }

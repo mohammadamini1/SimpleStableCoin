@@ -21,5 +21,23 @@ contract SimGovTest is BaseTest {
 
         assertEq(vault.getCollateralBalance(WETH_ADDRESS), 0);
     }
-    
+
+    /**
+     * @notice Tests functions access controls.
+     */
+    function testAdminFunctions() public {
+        bytes4 err = bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)"));
+
+        vm.startPrank(user);
+
+        vm.expectPartialRevert(err);
+        simGov.mint(address(0x111), 1000);
+
+        vm.expectPartialRevert(err);
+        simGov.burn(address(0x111), 1000);
+
+        vm.stopPrank();
+    }
+
+
 }

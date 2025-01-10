@@ -17,5 +17,21 @@ contract VaultTest is BaseTest {
         bytes32 SIMSTABLE_CONTRACT_ROLE = keccak256("SIMSTABLE_CONTRACT_ROLE");
         assertTrue(vault.hasRole(SIMSTABLE_CONTRACT_ROLE, address(simStable)), "SimStable does not have SIMSTABLE_CONTRACT_ROLE");
     }
-    
+
+    /**
+     * @notice Tests functions accress controls.
+     */
+    function testAdminFunctions() public {
+        bytes4 err = bytes4(keccak256("AccessControlUnauthorizedAccount(address,bytes32)"));
+
+        vm.startPrank(user);
+
+        vm.expectPartialRevert(err);
+        vault.depositCollateral(address(0x111), user, 1000);
+
+        vm.expectPartialRevert(err);
+        vault.withdrawCollateral(address(0x111), user, 1000);
+
+        vm.stopPrank();
+    }
 }
