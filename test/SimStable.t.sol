@@ -197,6 +197,32 @@ contract SimStableTest is BaseTest {
 
 
 
+    /**
+     * @notice Tests the recollateralization process by adding collateral and receiving SimGov tokens.
+     */
+    function testReCollateralize() public {
+        setupLiquidityPoolsDefault();
+        uint256 weth_price = simStable.getTokenPriceSpot(WETH_ADDRESS, DAI_ADDRESS);
+
+        uint256 collateralAmount = 10 ether;
+        uint256 simGovAmount = 10 * weth_price;
+        mintSimGov(user, simGovAmount);
+        uint256 userSimGovAmountBefore = simGov.balanceOf(user);
+
+        // Mint
+        vm.startPrank(user);
+        simStable.mint(collateralAmount, simGovAmount);
+        vm.stopPrank();
+
+        setCollateralRatio(500_000);
+
+        // reCollateralize
+        vm.startPrank(user);
+        simStable.reCollateralize(1 ether, weth_price);
+        vm.stopPrank();
+
+        assertEq(userSimGovAmountBefore + weth_price, simGov.balanceOf(user));
+    }
 
 
 

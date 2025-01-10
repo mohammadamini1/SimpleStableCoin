@@ -66,7 +66,6 @@ contract SimStable is ERC20, AccessControl {
     error CollateralRatioNotDroppingingTarget();
     error InsufficientSurplusCollateral(uint256 required, uint256 surplus);
     error InsufficientCollateral(uint256 totalCollateralValue, uint256 requiredCollateralValue);
-    // error InsufficientCollateral();
     error InvalidMinOrMaxCollateralRatioSet(uint256 minCollateralRatio, uint256 maxCollateralRatio); 
 
     // Events
@@ -305,7 +304,6 @@ contract SimStable is ERC20, AccessControl {
         // Calculate surplus collateral value
         if (totalCollateralValue <= requiredCollateralValue) {
             revert InsufficientCollateral(totalCollateralValue, requiredCollateralValue);
-            // revert InsufficientCollateral();
         }
         uint256 surplusCollateralValue = totalCollateralValue - requiredCollateralValue;
 

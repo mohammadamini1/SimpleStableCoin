@@ -42,6 +42,8 @@ contract BaseTest is Test {
     uint256 public reCollateralizeTargetRatio = 600_000; // 60%
     uint256 public minCollateralRatio = 500_000; // 50%
     uint256 public collateralRatioAdjustmentCooldown = 600; // 10 minutes
+    uint256 public maxCollateralMultiplier = 10; // 10 times collateral
+
 
     address public constant WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address public constant DAI_ADDRESS = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
