@@ -204,8 +204,8 @@ contract SimStableTest is BaseTest {
         setupLiquidityPoolsDefault();
         uint256 weth_price = simStable.getTokenPriceSpot(WETH_ADDRESS, DAI_ADDRESS);
 
-        uint256 collateralAmount = 10 ether;
-        uint256 simGovAmount = 10 * weth_price;
+        uint256 collateralAmount = 1 ether;
+        uint256 simGovAmount = 1 * weth_price;
         mintSimGov(user, simGovAmount);
         uint256 userSimGovAmountBefore = simGov.balanceOf(user);
 
@@ -218,10 +218,12 @@ contract SimStableTest is BaseTest {
 
         // reCollateralize
         vm.startPrank(user);
-        simStable.reCollateralize(1 ether, weth_price);
+        simStable.reCollateralize(10 ether, 10 * weth_price);
+        assertEq(userSimGovAmountBefore + (10 * weth_price), simGov.balanceOf(user));
+        vm.expectPartialRevert(SimStable.TooMuchCollateral.selector);
+        simStable.reCollateralize(10 ether, weth_price);
         vm.stopPrank();
 
-        assertEq(userSimGovAmountBefore + weth_price, simGov.balanceOf(user));
     }
 
 

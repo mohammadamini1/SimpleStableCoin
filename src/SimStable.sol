@@ -34,6 +34,7 @@ contract SimStable is ERC20, AccessControl {
     // Target Collateral Ratio (scaled by 1e6)
     uint256 public targetCollateralRatio;
     uint256 public reCollateralizeTargetRatio;
+    uint256 public maxCollateralMultiplier = 10;
     // Minimum and Maximum Collateral Ratios
     uint256 public minCollateralRatio;
     uint256 public maxCollateralRatio;
@@ -67,6 +68,8 @@ contract SimStable is ERC20, AccessControl {
     error InsufficientSurplusCollateral(uint256 required, uint256 surplus);
     error InsufficientCollateral(uint256 totalCollateralValue, uint256 requiredCollateralValue);
     error InvalidMinOrMaxCollateralRatioSet(uint256 minCollateralRatio, uint256 maxCollateralRatio); 
+    error TooMuchCollateral();
+    error InvalidMaxCollateralMultiplier();
 
     // Events
     event Minted(address indexed user, uint256 collateralAmount, uint256 collateralPrice, uint256 simStableAmount, uint256 simStablePrice, uint256 simGovAmount, uint256 simGovPrice, uint256 collateralRatio);
@@ -88,6 +91,7 @@ contract SimStable is ERC20, AccessControl {
     event MinCollateralRatioUpdated(uint256 oldMinCollateralRatio, uint256 newMinCollateralRatio);
     event MaxCollateralRatioUpdated(uint256 oldMaxCollateralRatio, uint256 newMaxCollateralRatio);
     event CollateralRatioAdjustmentCooldownUpdated(uint256 newCooldown);
+    event MaxCollateralMultiplierUpdated(uint256 newMaxCollateralMultiplier);
 
     // Constants
     uint256 private constant SCALING_FACTOR = 1e6;
@@ -348,12 +352,26 @@ contract SimStable is ERC20, AccessControl {
         uint256 collateralPrice = getTokenPrice(collateralToken, collateralTokenPair);
         uint256 simGovPrice = getSimGovPrice();
         uint256 simGovPricePair = (collateralPrice * WAD) / simGovPrice;
+        uint256 simStablePrice = getSimStablePrice();
+        uint256 simStablePricePair = (collateralPrice * WAD) / simStablePrice;
+
+        // Calculate the total value of SimStable supply
+        uint256 totalSimStableValue = (totalSupply() * simStablePricePair) / WAD;
+
+        // Get total collateral balance and its value
+        uint256 totalCollateral = vault.getCollateralBalance(collateralToken);
+        uint256 totalCollateralValue = (totalCollateral * collateralPrice) / WAD;
 
         // Calculate the value of the collateral added
-        uint256 collateralValue = (_collateralAmount * collateralPrice) / WAD;
+        uint256 addCollateralValue = (_collateralAmount * collateralPrice) / WAD;
+
+        // Calculate the max collateral value based on the current simStable price
+        if (totalCollateralValue + addCollateralValue > totalSimStableValue * maxCollateralMultiplier) {
+            revert TooMuchCollateral();
+        }
 
         // Calculate the amount of SimGov to mint
-        uint256 simGovAmount = (collateralValue * WAD) / simGovPricePair;
+        uint256 simGovAmount = (addCollateralValue * WAD) / simGovPricePair;
 
         // Check for slippage
         _checkSlippage(simGovAmount, _minSimGovAmount);
@@ -591,6 +609,18 @@ contract SimStable is ERC20, AccessControl {
         }
         maxCollateralRatio = _maxCollateralRatio;
         emit MaxCollateralRatioUpdated(maxCollateralRatio, _maxCollateralRatio);
+    }
+
+    /**
+     * @notice Sets a new maximum collateral multiplier.
+     * @param _maxCollateralMultiplier The new maximum collateral multiplier.
+     */
+    function setMaxCollateralMultiplier(uint256 _maxCollateralMultiplier) external onlyRole(ADMIN_ROLE) {
+        if (_maxCollateralMultiplier == 0) {
+            revert InvalidMaxCollateralMultiplier();
+        }
+        maxCollateralMultiplier = _maxCollateralMultiplier;
+        emit MaxCollateralMultiplierUpdated(_maxCollateralMultiplier);
     }
 
     /**
