@@ -15,9 +15,6 @@ import "./interface/ISimGov.sol";
 
 
 
-// TODO: make contract pausable
-// TODO: add simulation functions to calculate simStable amount for mint or redeem
-
 contract SimStable is ERC20, AccessControl {
     // Roles
     bytes32 private constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
